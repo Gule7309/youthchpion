@@ -171,7 +171,7 @@ Status: PASS
 Status: PASS
 
 - Backend `ruff check .`: passed; backend tests: `11 passed, 4 deselected` with two existing dependency deprecation warnings.
-- Frontend TypeScript/Vite build and Vitest: passed; `2 passed`.
+- Frontend TypeScript/Vite build and Vitest after UI 1.0 integration: passed; `3 passed`.
 - Production refresh `run_1679245a9dd4`: `SUCCEEDED`; DGBAS, ILO, TaiwanJobs, and 104 each returned HTTP 200 from a fresh request and were correctly classified `UNCHANGED` by content hash.
 - Published primary cohort: 644,000 employed people aged 20–24; comparison cohort: 1,266,000 aged 25–29.
 - Production job audit: 1,000 API jobs → 998 valid jobs; 0 duplicates, 1 expired job, 1 missing title, 92.6% entry-level occupation-crosswalk coverage.
@@ -193,3 +193,4 @@ Status: PASS
 - Deployed dashboard: <https://trzx7426g1.execute-api.us-west-2.amazonaws.com>.
 - Final Bedrock regression on `run_1679245a9dd4`: `amazon.nova-lite-v1:0`, `is_fixture=false`, exactly three distinct policy options.
 - Deployed browser shows the 20–24 metric, source-specific processing ledger and transform `2026-09-12.2`; console has 0 errors and 0 warnings.
+- Integrated teammate UI 1.0 history and retained its reviewed Ministry of Labor snapshot helper and layout assets, but kept the production entry on the verified live-data Dashboard; the fixed snapshot and disabled policy report do not replace the working flow.

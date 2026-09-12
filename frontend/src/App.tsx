@@ -1,7 +1,19 @@
-import { useRef, useState } from 'react'
-import { refreshDashboard } from './api'
-import { annualChange, pendingIndicators, snapshot } from './verifiedSnapshot'
-import './policyDashboard.css'
+import { useEffect, useMemo, useState } from 'react'
+import { generatePolicy, getDashboard, refreshDashboard, searchEvidence } from './api'
+import type {
+  Dashboard,
+  EvidenceItem,
+  OccupationSignal,
+  PolicyResponse,
+  SourceSnapshot,
+} from './types'
+
+const SOURCE_NAMES: Record<string, string> = {
+  dgbas_employment: '主計總處／就業結構',
+  ilo_genai_exposure: 'ILO／AI 職業暴露',
+  taiwanjobs: '台灣就業通／即時職缺',
+  job104_research: '104／民間產業訊號',
+}
 
 const number = new Intl.NumberFormat('zh-TW')
 const percent = (value?: number) => (value == null ? '—' : `${(value * 100).toFixed(1)}%`)
