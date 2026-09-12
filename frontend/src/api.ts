@@ -2,6 +2,13 @@ import type { Dashboard, EvidenceItem, PolicyResponse } from './types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
+const ERROR_MESSAGES: Record<string, string> = {
+  policy_contract_invalid_after_retry:
+    'Bedrock 已自動校正三次，但本次格式仍不完整。分析資料沒有遺失，請再按一次產生政策選項。',
+  insufficient_evidence: '至少需要一筆可解析的權威證據才能產生政策選項。',
+  analysis_run_is_not_latest: '資料已更新，請使用最新分析版本重新產生政策選項。',
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -9,7 +16,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(body.detail ?? `HTTP ${response.status}`)
+    const detail = typeof body.detail === 'string' ? body.detail : `HTTP ${response.status}`
+    throw new Error(ERROR_MESSAGES[detail] ?? detail)
   }
   return response.json() as Promise<T>
 }

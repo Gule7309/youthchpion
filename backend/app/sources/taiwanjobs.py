@@ -9,6 +9,10 @@ from app.models import FreshnessStatus, SourceSnapshot, utc_now
 from app.sources.base import AdapterResult
 
 TAIWANJOBS_URL = "https://free.taiwanjobs.gov.tw/webservice_taipei/Webservice.ashx"
+TAIWANJOBS_REFERENCE_URL = (
+    "https://free.taiwanjobs.gov.tw/webservice_taipei/"
+    "A17000000J-030144-Taiwanjobs-OpenData.pdf"
+)
 AI_PATTERN = re.compile(
     r"(?i)(人工智慧|生成式\s*AI|機器學習|深度學習|LLM|AI\s*工具|Python|資料科學|prompt)"
 )
@@ -113,6 +117,15 @@ class TaiwanJobsAdapter:
             source_id=self.source_id,
             status=FreshnessStatus.LIVE,
             source_url=payload.url,
+            dataset_name="勞動部台灣就業通公開職缺 XML",
+            reference_url=TAIWANJOBS_REFERENCE_URL,
+            processing_steps=[
+                "修復來源中不符合 XML 規格的全形括號欄位標籤",
+                "依職缺網址或職稱、公司與地區組合去重",
+                "排除截止日已過期資料並保留移除筆數",
+                "依經驗條件辨識初階職缺，依公開規則辨識 AI 技能關鍵字",
+                "將台灣就業通職類對齊七個職業大類；未對齊類別保留在 audit",
+            ],
             retrieved_at=utc_now(),
             http_status=payload.status_code,
             content_type=payload.content_type,

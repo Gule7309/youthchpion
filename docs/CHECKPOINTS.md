@@ -92,3 +92,54 @@ Status: PASS — 2026-09-12
 - Snapshot bucket is private, has all four S3 public-access blocks enabled, and has versioning enabled.
 - EventBridge rule `youthchpion-demo-YouthChampionFunctionDailyRefresh-MLHwcfv2dczF` is enabled with `rate(1 day)`.
 - The successful run persisted four raw source snapshots, four normalized snapshots, the published dashboard, run record, latest pointer, and generated policy options.
+
+## Production hotfix — source transparency and policy contract — 2026-09-12
+
+### Plan checkpoint
+
+Status: PASS
+
+- Goal: prevent intermittent Bedrock contract drift from surfacing as an immediate 503, and make every source card explain its human-readable origin, machine endpoint, transformations, and freshness status.
+- Scope: policy generation retry/validation, source snapshot metadata, source/cleaning UI, focused backend/frontend tests, AWS redeploy.
+- Non-goals: changing the indicator formula, age range, evidence ranking, visual redesign, or adopting the later draft requirements wholesale.
+- Acceptance: an invalid first model response is corrected on a rate-limited retry; persistent invalid output still fails closed; supported source percentages remain allowed while invented percentages are rejected; clicking a source expands readable provenance instead of navigating directly to JSON/XML; LIVE and UNCHANGED are defined in the UI.
+- Verification: backend lint/tests, frontend type/build/tests, real cloud refresh, repeated Bedrock generation, deployed browser check, secret scan, clean Git state.
+
+### Implementation checkpoint
+
+Status: PASS
+
+- Source snapshots now carry a dataset name, human-readable official reference URL, raw machine endpoint, and ordered processing steps.
+- Source cards expand in place and no longer navigate to raw JSON/XML on the primary click; raw data remains available through an explicitly labeled secondary link.
+- The cleaning panel now explains publish-after-validation, duplicates, missing titles, transform version, and per-source transformations.
+- Policy generation now makes up to three contract attempts, reapplies the Bedrock interval before every request, feeds the previous validation error into the next request, extracts the first valid JSON object, and still fails closed after the final invalid response.
+- Percentage validation now allows only values derived from the selected occupation signal and rejects unsupported percentages; KPI targets must remain `pilot-defined`.
+
+### Test checkpoint
+
+Status: PASS
+
+- Backend `ruff check .`: passed.
+- Backend tests: `11 passed, 4 deselected`; two dependency deprecation warnings remain.
+- Frontend TypeScript/Vite build: passed; frontend tests: `2 passed`.
+- Cloud refresh `run_21b9b2c78d4b`: `SUCCEEDED`; all four sources returned HTTP 200 and published provenance metadata.
+- Three consecutive production Bedrock requests: all succeeded with exactly three options and `is_fixture=false`.
+- Deployed browser policy flow: succeeded; console had 0 errors and 0 warnings.
+
+### Review checkpoint
+
+Status: PASS
+
+- Verified `UNCHANGED` is assigned only after a successful fresh download whose SHA-256 matches the previous published source; it is not a cached response.
+- Verified a source card expands to show official dataset title, all processing steps, HTTP 200, checksum, official reference, and separately labeled raw endpoint.
+- Verified the policy endpoint continues rejecting unknown evidence IDs, invented percentages, invalid KPI targets, duplicate option titles, and non-three-option responses.
+- Kept the later teammate requirement drafts intact and limited this hotfix to the reported production behavior.
+
+### Release checkpoint
+
+Status: PASS
+
+- Existing CloudFormation stack `youthchpion-demo` updated successfully in `us-west-2`.
+- Deployed dashboard published run `run_21b9b2c78d4b` and the source-transparency UI.
+- Production browser generated three policy cards after the hotfix without the prior 503.
+- Final diff check and staged secret scan passed before commit; generated build artifacts remain ignored.

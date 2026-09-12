@@ -4,6 +4,9 @@ export interface SourceSnapshot {
   source_id: string
   status: Freshness
   source_url: string
+  dataset_name?: string
+  reference_url?: string
+  processing_steps?: string[]
   retrieved_at: string
   source_published_at?: string
   http_status?: number

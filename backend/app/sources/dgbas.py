@@ -11,6 +11,7 @@ from app.models import FreshnessStatus, SourceSnapshot, utc_now
 from app.sources.base import AdapterResult
 
 DGBAS_URL = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/11516/234727/table47.xlsx"
+DGBAS_REFERENCE_URL = "https://www.stat.gov.tw/News_Content.aspx?n=4001&s=236078"
 
 # The public workbook is bilingual. Rows 14-20 are the seven published occupation groups;
 # row names are mapped only after verifying their embedded English label.
@@ -78,6 +79,14 @@ class DgbasAdapter:
             source_id=self.source_id,
             status=FreshnessStatus.LIVE,
             source_url=payload.url,
+            dataset_name="主計總處人力資源調查統計年報表 47",
+            reference_url=DGBAS_REFERENCE_URL,
+            processing_steps=[
+                "驗證表 47 職業列與英文標籤，欄位漂移即停止發布",
+                "擷取 20–24 歲與 25–29 歲兩個年齡欄",
+                "將原始單位由千人換算為整數人數",
+                "統一為七個職業大類，供 ILO 指標對齊",
+            ],
             retrieved_at=utc_now(),
             source_published_at=datetime(2026, 8, 1),
             http_status=payload.status_code,

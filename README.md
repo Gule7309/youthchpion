@@ -53,6 +53,17 @@ npm run check
 - 每次更新保存 raw/normalized snapshot、SHA-256、HTTP 狀態、筆數、時間與清洗稽核。
 - Bedrock 只接收已發布指標與勾選證據，模型未設定或失敗時不顯示假答案。
 
+## 資料來源與清洗
+
+| 來源 | 真實輸入 | 主要處理 | 用途 |
+| --- | --- | --- | --- |
+| 主計總處表 47 | 官方年度 Excel | 驗證欄位、擷取 20–24／25–29、千人轉人數、統一七大職業 | 青年就業人數與集中度 |
+| ILO 2025 GenAI Exposure | 官方研究所附 426 筆 CSV | 解析分數與梯度、依 ISCO 職業大類彙整 | 職業 AI 暴露訊號 |
+| 台灣就業通 | 勞動部即時公開職缺 XML | 修復非標準 XML、去重、排除過期、辨識初階與 AI 關鍵字、職類 crosswalk | 初階職缺與 AI 機會 |
+| 104 職場力 | 官方 WordPress API | 查詢 AI 職缺文章、取得前三篇 metadata、HTML 轉純文字 | 民間產業趨勢脈絡 |
+
+Dashboard 的每張來源卡可展開查看本次 HTTP 狀態、SHA-256、逐步處理規則、官方說明及機器原始端點。`LIVE` 表示本次重新查詢後內容有變動，或是第一次建立快照；`UNCHANGED` 表示本次也有重新下載與處理，但 SHA-256 與上一個成功版本相同，不是 cache 或 fixture。
+
 ## Live data
 
 `POST /v1/refresh` 會建立新的 run，實際查詢外部來源。測試 fixture 只用於自動測試，API 回應會明確標記來源 freshness，絕不將 fixture 冒充為即時資料。

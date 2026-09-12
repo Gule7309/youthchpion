@@ -173,7 +173,11 @@ def build_dashboard(
         unmatched_categories=audit.get("unmatched_categories", []),
         before_after=[
             {"before": "DGBAS value (thousand people)", "after": "integer person count"},
+            {"before": "DGBAS all published age columns", "after": "20–24 + 25–29"},
+            {"before": "ILO detailed occupations", "after": "ISCO major-group averages"},
+            {"before": "TaiwanJobs non-standard XML", "after": "parseable normalized fields"},
             {"before": "TaiwanJobs proprietary category", "after": "versioned occupation group"},
+            {"before": "104 search API HTML excerpts", "after": "plain-text industry context"},
         ],
     )
     industry_context = results.get("job104").records if results.get("job104") else []

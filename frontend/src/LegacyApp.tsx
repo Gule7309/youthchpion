@@ -106,16 +106,33 @@ function IndicatorMatrix({ signals, selected, onSelect }: {
 
 function SourceCard({ source }: { source: SourceSnapshot }) {
   return (
-    <a className="source-row" href={source.source_url} target="_blank" rel="noreferrer">
-      <div>
-        <span>{SOURCE_NAMES[source.source_id] ?? source.source_id}</span>
-        <small>{source.raw_rows.toLocaleString()} raw → {source.normalized_rows.toLocaleString()} clean</small>
+    <details className="source-row">
+      <summary>
+        <div>
+          <span>{SOURCE_NAMES[source.source_id] ?? source.source_id}</span>
+          <small>{source.raw_rows.toLocaleString()} raw → {source.normalized_rows.toLocaleString()} clean</small>
+        </div>
+        <div className="source-row__status">
+          <StatusBadge value={source.status} />
+          <small>{time(source.retrieved_at)}</small>
+        </div>
+      </summary>
+      <div className="source-detail">
+        <strong>{source.dataset_name ?? '來源資料集'}</strong>
+        <ol>
+          {(source.processing_steps ?? []).map((step) => <li key={step}>{step}</li>)}
+        </ol>
+        {source.message && <p>{source.message}</p>}
+        <dl>
+          <div><dt>HTTP</dt><dd>{source.http_status ?? '—'}</dd></div>
+          <div><dt>SHA-256</dt><dd>{source.content_sha256?.slice(0, 16) ?? '—'}…</dd></div>
+        </dl>
+        <div className="source-detail__links">
+          {source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">官方說明</a>}
+          <a href={source.source_url} target="_blank" rel="noreferrer">機器原始資料</a>
+        </div>
       </div>
-      <div className="source-row__status">
-        <StatusBadge value={source.status} />
-        <small>{time(source.retrieved_at)}</small>
-      </div>
-    </a>
+    </details>
   )
 }
 
@@ -350,19 +367,29 @@ export default function App() {
                 <p>暴露分數代表職務轉型可能性，不等於失業或被取代機率。</p>
               </article>
               <article className="panel sources-panel">
-                <div className="panel__header"><div><span className="eyebrow">LIVE SOURCES</span><h2>資料新鮮度</h2></div><StatusBadge value={dashboard.overall_status} /></div>
+                <div className="panel__header"><div><span className="eyebrow">LIVE SOURCES</span><h2>資料新鮮度</h2><small>點開來源查看清洗步驟</small></div><StatusBadge value={dashboard.overall_status} /></div>
                 {dashboard.sources.map((source) => <SourceCard key={source.source_id} source={source} />)}
+                <div className="freshness-help">
+                  <p><StatusBadge value="LIVE" /> 本次重新查詢成功，內容相較上一版有變動，或是首次建立快照。</p>
+                  <p><StatusBadge value="UNCHANGED" /> 本次仍有重新連線並下載；SHA-256 與上一個成功版本相同，不是 cache 或假資料。</p>
+                </div>
               </article>
             </aside>
 
             <article className="panel cleaning-panel">
               <div className="panel__header"><div><span className="eyebrow">CLEANING AUDIT</span><h2>清洗前 → 清洗後</h2></div><code>{dashboard.cleaning_summary.transform_version}</code></div>
+              <p className="cleaning-intro">每次更新都先保存原始檔，再解析欄位、統一年齡／單位／職類、去重與排除過期資料，通過 schema 與 join 品質檢查後才發布。</p>
               <div className="cleaning-stats">
                 <div><b>{number.format(dashboard.cleaning_summary.raw_rows)}</b><span>RAW ROWS</span></div>
                 <span>→</span>
                 <div><b>{number.format(dashboard.cleaning_summary.normalized_rows)}</b><span>NORMALIZED</span></div>
                 <div><b>{percent(dashboard.cleaning_summary.crosswalk_coverage)}</b><span>JOIN COVERAGE</span></div>
                 <div><b>{dashboard.cleaning_summary.expired_removed}</b><span>EXPIRED REMOVED</span></div>
+              </div>
+              <div className="cleaning-removals">
+                <span>去重 {dashboard.cleaning_summary.duplicates_removed} 筆</span>
+                <span>缺職稱 {dashboard.cleaning_summary.missing_occupation} 筆</span>
+                <span>轉換規則版本 {dashboard.cleaning_summary.transform_version}</span>
               </div>
               <details>
                 <summary>檢視未對齊類別與轉換規則</summary>
