@@ -1,0 +1,93 @@
+export type Freshness = 'LIVE' | 'UNCHANGED' | 'CACHED' | 'STALE' | 'VERSIONED' | 'FAILED'
+
+export interface SourceSnapshot {
+  source_id: string
+  status: Freshness
+  source_url: string
+  dataset_name?: string
+  reference_url?: string
+  processing_steps?: string[]
+  retrieved_at: string
+  source_published_at?: string
+  http_status?: number
+  content_sha256?: string
+  raw_rows: number
+  normalized_rows: number
+  message?: string
+}
+
+export interface OccupationSignal {
+  code: string
+  name: string
+  youth_employed?: number
+  youth_employment_share?: number
+  exposure_level: string
+  exposure_score?: number
+  ai_entry_jobs: number
+  total_entry_jobs: number
+  ai_entry_opportunity_rate?: number
+  priority: 'high' | 'medium' | 'monitor'
+  source_snapshot_ids: string[]
+}
+
+export interface EvidenceItem {
+  evidence_id: string
+  title: string
+  institution: string
+  authors: string[]
+  published_at?: string
+  evidence_type: string
+  authority_tier: 'A' | 'B' | 'C' | 'D'
+  finding?: string
+  limitations?: string
+  doi?: string
+  url: string
+  retrieved_at: string
+  freshness: Freshness
+}
+
+export interface CleaningAudit {
+  raw_rows: number
+  normalized_rows: number
+  duplicates_removed: number
+  expired_removed: number
+  missing_occupation: number
+  crosswalk_coverage?: number
+  unmatched_categories: string[]
+  transform_version: string
+  before_after: Array<{ before: string; after: string }>
+}
+
+export interface Dashboard {
+  analysis_run_id: string
+  published_at: string
+  overall_status: Freshness
+  sources: SourceSnapshot[]
+  summary_metrics: Record<string, unknown>
+  occupation_signals: OccupationSignal[]
+  public_opinion: Array<Record<string, unknown>>
+  industry_context: Array<Record<string, unknown>>
+  cleaning_summary: CleaningAudit
+  evidence_preview: EvidenceItem[]
+}
+
+export interface PolicyOption {
+  title: string
+  target_group: string
+  problem: string
+  mechanism: string
+  implementation: string[]
+  kpis: Array<{ name: string; target: string }>
+  evidence_ids: string[]
+  risks: string[]
+  limitations: string[]
+}
+
+export interface PolicyResponse {
+  generated_at: string
+  model_id: string
+  analysis_run_id: string
+  options: PolicyOption[]
+  warnings: string[]
+  is_fixture: boolean
+}
