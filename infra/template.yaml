@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: YouthCHPION API, private snapshots, scheduled refresh, and Bedrock access.
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Description: Foundation model or inference profile ID enabled in the competition account.
+  AllowedOrigin:
+    Type: String
+    Default: http://localhost:5173
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures: [x86_64]
+    Timeout: 120
+    MemorySize: 1024
+    Environment:
+      Variables:
+        DATA_BUCKET: !Ref SnapshotBucket
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_MIN_INTERVAL_MS: '1100'
+
+Resources:
+  SnapshotBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ArchiveRawSnapshots
+            Status: Enabled
+            Prefix: raw/
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+
+  Api:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: [!Ref AllowedOrigin]
+        AllowHeaders: [Content-Type]
+        AllowMethods: [GET, POST, OPTIONS]
+
+  YouthChampionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../build/lambda
+      Handler: app.lambda_handler.handler
+      Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /
+            Method: ANY
+        Proxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /{proxy+}
+            Method: ANY
+        DailyRefresh:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+            Enabled: true
+            Input: '{"action":"scheduled_refresh"}'
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref SnapshotBucket
+        - S3WritePolicy:
+            BucketName: !Ref SnapshotBucket
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: '*'
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-*
+
+Outputs:
+  ApiEndpoint:
+    Value: !Sub https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  SnapshotBucketName:
+    Value: !Ref SnapshotBucket
