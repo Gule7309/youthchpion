@@ -6,6 +6,8 @@ export interface SourceSnapshot {
   source_url: string
   dataset_name?: string
   reference_url?: string
+  discovery_url?: string
+  data_period?: string
   fields_used?: string[]
   why_used?: string
   limitations?: string
@@ -27,17 +29,38 @@ export interface OccupationSignal {
   youth_employed?: number
   youth_employed_25_29?: number
   youth_employment_share?: number
+  occupation_share_of_youth?: number
   exposure_level: string
   exposure_score?: number
+  exposure_p90?: number
+  high_exposure_occupation_share?: number
+  exposure_occupation_count?: number
   ai_entry_jobs: number
   total_entry_jobs: number
   ai_entry_opportunity_rate?: number
+  recruitment_vacancies_current?: number
+  recruitment_vacancies_previous?: number
+  recruitment_yoy_change?: number
+  recruitment_three_year_change?: number
+  recruitment_weakening?: number
+  weakening_sensitivity?: Record<string, number | undefined>
+  industry_adoption_score?: number
   youth_concentration_index?: number
   opportunity_gap?: number
   transformation_priority_score?: number
+  structural_exposure_score?: number
+  complete_risk_score?: number
+  score_status?: 'EXPERIMENTAL' | 'MISSING_C' | 'INSUFFICIENT_DATA'
   score_formula: string
   priority: 'high' | 'medium' | 'monitor'
   source_snapshot_ids: string[]
+  source_snapshot_refs?: Array<{
+    source_id: string
+    run_id: string
+    snapshot_key?: string
+    content_sha256?: string
+    data_period?: string
+  }>
 }
 
 export interface EvidenceItem {

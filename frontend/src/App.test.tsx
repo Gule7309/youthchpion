@@ -1,11 +1,17 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 describe('App', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/')
+  })
+
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    window.history.replaceState(null, '', '/')
   })
 
   it('does not replace a missing dashboard with fixture metrics', async () => {
@@ -18,7 +24,7 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: '青年 AI 就業風險' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '青年 AI 就業轉型雷達' })).toBeInTheDocument()
     expect(screen.getByText('NO FIXTURE / NO PRETEND DATA')).toBeInTheDocument()
   })
 
@@ -59,6 +65,7 @@ describe('App', () => {
           youth_employed: 10,
           youth_employed_25_29: 12,
           youth_employment_share: 1,
+          occupation_share_of_youth: 1,
           exposure_level: 'gradient',
           exposure_score: 0.5,
           ai_entry_jobs: 0,
@@ -67,7 +74,10 @@ describe('App', () => {
           youth_concentration_index: 1,
           opportunity_gap: 1,
           transformation_priority_score: 79.4,
-          score_formula: '100 × cubic_root(A × B × H)',
+          structural_exposure_score: 70.7,
+          complete_risk_score: null,
+          score_status: 'MISSING_C',
+          score_formula: '100 × sqrt(A × B)',
           priority: 'high',
           source_snapshot_ids: ['dgbas_employment'],
         }],
@@ -94,11 +104,11 @@ describe('App', () => {
     render(<App />)
 
     expect((await screen.findAllByText(/主計總處／20–24 歲就業結構/)).length).toBeGreaterThan(0)
-    expect(screen.getByText('AI 轉型優先度')).toBeInTheDocument()
-    expect(screen.getAllByText(/79.4/).length).toBeGreaterThan(0)
+    expect(screen.getByText('實驗性結構暴露')).toBeInTheDocument()
+    expect(screen.getAllByText(/70.7/).length).toBeGreaterThan(0)
     expect(screen.getByText('建立主分析族群與比較組。')).toBeInTheDocument()
     expect(screen.getByText('職業大類資料不能解讀為失業人數。')).toBeInTheDocument()
-    expect(screen.getByText('查看來源說明頁 ↗')).toHaveAttribute(
+    expect(screen.getByText(/查看來源說明頁/)).toHaveAttribute(
       'href',
       'https://example.com/about',
     )
@@ -124,7 +134,7 @@ describe('App', () => {
         ok: true,
         json: async () => ({
           analysis_run_id: 'run_test', published_at: '2026-09-12T07:00:00Z', overall_status: 'LIVE', sources: [], summary_metrics: {},
-          occupation_signals: [{ code: '4', name: '事務支援人員', youth_employed: 10, youth_employment_share: 1, exposure_level: 'high', exposure_score: 0.5, ai_entry_jobs: 0, total_entry_jobs: 1, ai_entry_opportunity_rate: 0, youth_concentration_index: 1, opportunity_gap: 1, transformation_priority_score: 79.4, score_formula: 'formula', priority: 'high', source_snapshot_ids: [] }],
+          occupation_signals: [{ code: '4', name: '事務支援人員', youth_employed: 10, youth_employment_share: 1, occupation_share_of_youth: 1, exposure_level: 'high', exposure_score: 0.5, ai_entry_jobs: 0, total_entry_jobs: 1, ai_entry_opportunity_rate: 0, recruitment_weakening: 0.5, recruitment_yoy_change: -0.1, transformation_priority_score: 70.7, structural_exposure_score: 70.7, complete_risk_score: null, score_status: 'MISSING_C', score_formula: 'formula', priority: 'high', source_snapshot_ids: [] }],
           public_opinion: [], industry_context: [], cleaning_summary: { duplicates_removed: 0, expired_removed: 0, missing_occupation: 0, unmatched_categories: [], transform_version: 'test', before_after: [] },
           evidence_preview: [{ evidence_id: 'ev_1', title: 'ILO report', institution: 'ILO', authors: [], published_at: '2025', evidence_type: 'international report', authority_tier: 'A', method_summary: 'Task analysis', finding: 'AI changes tasks', limitations: 'Not causal', url: 'https://ilo.org/report', retrieved_at: '2026-09-12T07:00:00Z', freshness: 'VERSIONED' }],
         }),
@@ -133,12 +143,14 @@ describe('App', () => {
     vi.stubGlobal('fetch', fetch)
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: '執行權威證據 Agent' }))
+    fireEvent.click(await screen.findByRole('tab', { name: '論證' }))
+    fireEvent.click(screen.getByRole('button', { name: '執行權威證據 Agent' }))
 
     expect(await screen.findByText(/已通過原文認證：AI 主要改變工作任務。/)).toBeInTheDocument()
     expect(screen.getByText(/SHA-256 abcdef123456/)).toBeInTheDocument()
     expect(screen.getByText(/Harness test-v1/)).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith('/v1/evidence/verify', expect.objectContaining({ method: 'POST' }))
+    fireEvent.click(screen.getByRole('tab', { name: '報告' }))
     expect(screen.getByRole('button', { name: '產生三個政策選項' })).toBeEnabled()
   })
 })
