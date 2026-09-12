@@ -9,6 +9,10 @@ from app.models import FreshnessStatus, SourceSnapshot, utc_now
 from app.sources.base import AdapterResult
 
 ILO_URL = "https://datawrapper.dwcdn.net/x3jzk/13/dataset.csv"
+ILO_REFERENCE_URL = (
+    "https://www.ilo.org/publications/"
+    "generative-ai-and-jobs-refined-global-index-occupational-exposure"
+)
 
 
 def parse_ilo_csv(body: bytes) -> list[dict[str, object]]:
@@ -54,6 +58,14 @@ class IloAdapter:
             source_id=self.source_id,
             status=FreshnessStatus.LIVE,
             source_url=payload.url,
+            dataset_name="ILO 2025 refined occupational GenAI exposure index",
+            reference_url=ILO_REFERENCE_URL,
+            processing_steps=[
+                "解析 426 筆細職業的平均 AI 暴露分數與梯度",
+                "依 ISCO major group 對齊職業代碼",
+                "將細職業分數彙整為九個職業大類",
+                "保留暴露梯度文字；暴露不解讀為失業機率",
+            ],
             retrieved_at=utc_now(),
             source_published_at=None,
             http_status=payload.status_code,

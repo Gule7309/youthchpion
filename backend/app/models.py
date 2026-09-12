@@ -37,6 +37,9 @@ class SourceSnapshot(BaseModel):
     source_id: str
     status: FreshnessStatus
     source_url: str
+    dataset_name: str | None = None
+    reference_url: str | None = None
+    processing_steps: list[str] = Field(default_factory=list)
     retrieved_at: datetime
     source_published_at: datetime | None = None
     http_status: int | None = None
