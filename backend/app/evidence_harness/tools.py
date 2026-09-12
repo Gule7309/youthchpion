@@ -97,8 +97,12 @@ def default_tool_schemas() -> dict[str, dict[str, Any]]:
         },
         "verify_claim_support": {
             "type": "object",
-            "properties": {"claim_id": text, "source_ids": {"type": "array", "items": text}},
-            "required": ["claim_id", "source_ids"],
+            "properties": {
+                "claim_id": text,
+                "source_ids": {"type": "array", "items": text},
+                "excerpt_locators": {"type": "array", "items": text},
+            },
+            "required": ["claim_id", "source_ids", "excerpt_locators"],
             "additionalProperties": False,
         },
         "search_policy_knowledge_base": {

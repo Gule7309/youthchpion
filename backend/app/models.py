@@ -101,6 +101,7 @@ class EvidenceItem(BaseModel):
     url: HttpUrl
     retrieved_at: datetime
     freshness: FreshnessStatus
+    discovery_source: Literal["curated", "openalex", "crossref", "unknown"] = "unknown"
 
 
 class EvidenceVerificationRequest(BaseModel):
@@ -127,6 +128,26 @@ class VerifiedClaim(BaseModel):
     limitations: list[str] = Field(default_factory=list)
     source_title: str
     source_url: HttpUrl
+    retrieved_url: HttpUrl | None = None
+    content_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    authority_basis: str | None = None
+
+
+class EvidenceHarnessSummary(BaseModel):
+    schema_version: str = "1.0"
+    prompt_version: str
+    searched_candidates: int = Field(ge=0)
+    selected_sources: int = Field(ge=0)
+    retrieved_sources: int = Field(ge=0)
+    model_calls: int = Field(ge=0)
+    approved_claims: int = Field(ge=0)
+    rejected_sources: int = Field(ge=0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    duration_ms: int = Field(ge=0)
+    max_sources: int = Field(ge=1)
+    max_passages_per_source: int = Field(ge=1)
+    deadline_seconds: float = Field(gt=0)
 
 
 class EvidenceVerificationResponse(BaseModel):
@@ -140,6 +161,7 @@ class EvidenceVerificationResponse(BaseModel):
     claims: list[VerifiedClaim]
     gaps: list[str] = Field(default_factory=list)
     agent_steps: list[str] = Field(default_factory=list)
+    harness: EvidenceHarnessSummary | None = None
 
 
 class DashboardResponse(BaseModel):

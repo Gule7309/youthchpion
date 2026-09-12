@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import boto3
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -18,11 +20,13 @@ from app.models import (
     EvidenceSearchRequest,
     EvidenceVerificationRequest,
     EvidenceVerificationResponse,
+    FreshnessStatus,
     PolicyRequest,
     PolicyResponse,
     RefreshRequest,
     RefreshResponse,
     RunResponse,
+    VerifiedClaim,
 )
 from app.pipeline import PipelineService
 from app.policy import BedrockPolicyService, PolicyGenerationError
@@ -36,6 +40,30 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
+
+
+def cache_control_for(method: str, path: str, status_code: int) -> str:
+    if method != "GET" or status_code >= 400:
+        return "no-store"
+    if path.startswith("/assets/"):
+        return "public, max-age=31536000, immutable"
+    if path == "/" or path.endswith("/index.html"):
+        return "no-cache"
+    if path == "/v1/dashboard" or path.startswith("/v1/occupations/"):
+        return "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+    if path.startswith("/v1/dashboard/"):
+        return "no-cache"
+    return "no-store"
+
+
+@app.middleware("http")
+async def add_cache_policy(request: Request, call_next: Any) -> Response:
+    response = await call_next(request)
+    response.headers.setdefault(
+        "Cache-Control",
+        cache_control_for(request.method, request.url.path, response.status_code),
+    )
+    return response
 
 store = create_store()
 evidence_service = EvidenceService(RetryingHttpClient())
@@ -94,11 +122,49 @@ async def get_run(run_id: str) -> RunResponse:
 
 
 @app.get("/v1/dashboard", response_model=DashboardResponse)
-async def dashboard() -> DashboardResponse:
+async def dashboard(request: Request, response: Response) -> Any:
     latest = pipeline.latest_dashboard()
     if not latest:
         raise HTTPException(status_code=404, detail="dashboard_not_ready")
+    is_stale = datetime.now(UTC) - latest.published_at > timedelta(
+        hours=settings.latest_max_stale_hours
+    )
+    if is_stale:
+        latest = latest.model_copy(update={"overall_status": FreshnessStatus.STALE})
+        response.headers["Cache-Control"] = "no-cache"
+    etag = (
+        f'"dashboard-{latest.analysis_run_id}-'
+        f'{latest.overall_status.value.casefold()}"'
+    )
+    if request.headers.get("if-none-match") == etag:
+        headers = {"ETag": etag}
+        if is_stale:
+            headers["Cache-Control"] = "no-cache"
+        return Response(status_code=304, headers=headers)
+    response.headers["ETag"] = etag
     return latest
+
+
+@app.get("/v1/dashboard/{run_id}", response_model=DashboardResponse)
+async def versioned_dashboard(run_id: str, request: Request, response: Response) -> Any:
+    stored = store.get_json(f"published/{run_id}/dashboard.json")
+    if not stored:
+        raise HTTPException(status_code=404, detail="dashboard_run_not_found")
+    value = DashboardResponse.model_validate(stored)
+    if value.analysis_run_id != run_id:
+        raise HTTPException(status_code=409, detail="dashboard_run_mismatch")
+    representation = json.dumps(
+        value.model_dump(mode="json"),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    content_hash = hashlib.sha256(representation.encode()).hexdigest()[:16]
+    etag = f'"dashboard-{run_id}-{content_hash}"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+    response.headers["ETag"] = etag
+    return value
 
 
 @app.get("/v1/occupations/{code}")
@@ -207,6 +273,13 @@ async def policy_options(request: PolicyRequest) -> PolicyResponse:
             for claim in verification.claims
             if claim.evidence_id in request.evidence_ids
         ]
+        if not _has_complete_verification_receipts(
+            verified_claims, request.evidence_ids
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="evidence_verification_receipt_missing",
+            )
     except KeyError as exc:
         raise HTTPException(status_code=422, detail=f"unknown_evidence_ids: {exc}") from exc
     try:
@@ -220,10 +293,41 @@ async def policy_options(request: PolicyRequest) -> PolicyResponse:
     except PolicyGenerationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     store.put_json(
-        f"published/{latest.analysis_run_id}/policy-options.json",
+        (
+            f"published/{latest.analysis_run_id}/policy-options/"
+            f"{request.occupation_code}-{_policy_artifact_id(request)}.json"
+        ),
         response.model_dump(mode="json"),
     )
     return response
+
+
+def _has_complete_verification_receipts(
+    claims: list[VerifiedClaim], evidence_ids: list[str]
+) -> bool:
+    expected = set(evidence_ids)
+    covered = {claim.evidence_id for claim in claims}
+    return bool(expected) and expected.issubset(covered) and all(
+        claim.retrieved_url is not None
+        and claim.content_sha256 is not None
+        and bool(claim.authority_basis and claim.authority_basis.strip())
+        for claim in claims
+    )
+
+
+def _policy_artifact_id(request: PolicyRequest) -> str:
+    identity = json.dumps(
+        {
+            "occupation_code": request.occupation_code,
+            "policy_goal": " ".join(request.policy_goal.casefold().split()),
+            "evidence_ids": sorted(request.evidence_ids),
+            "verification_id": request.verification_id,
+            "model_id": settings.bedrock_model_id,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(identity.encode()).hexdigest()[:16]
 
 
 # A production build can be served by the same process. API routes are registered first,

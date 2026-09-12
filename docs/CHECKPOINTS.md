@@ -1,5 +1,79 @@
 # Development checkpoints
 
+## Authority Evidence Agent hardening — 2026-09-12
+
+### Plan checkpoint
+
+Status: PASS
+
+- Goal: make Section 04 evidence publication traceable to a real verification action, reject
+  redirected or index-only material that is not an eligible original source, expose bounded-run
+  evidence, and define safe cache boundaries for the dashboard and Agent workflow.
+- Assumptions: the existing in-process `AuthorityEvidenceAgent` remains the competition runtime;
+  the separate AgentCore/five-Lambda topology stays a future deployment option; the user's
+  uncommitted occupation-specific query change in `frontend/src/App.tsx` must be preserved.
+- Out of scope: deploying a new AgentCore runtime, adding CloudFront, caching positive model
+  verdicts, PDF extraction, authentication, or changing the employment-risk formula.
+- Acceptance: an inspect-only harness run cannot publish; redirect-to-news/index/private-host
+  evidence cannot reach Bedrock; malformed model verdicts fail closed; successful claims expose
+  final retrieval URL and content hash; Section 04 exposes bounded-run facts; GET/static responses
+  receive explicit cache policy while state-changing/Agent responses are `no-store`.
+- Verification: focused negative regression tests, complete backend lint/test suite, frontend tests,
+  TypeScript production build, and a final diff/architecture review.
+
+### Implementation checkpoint
+
+Status: PASS
+
+- Production evidence flow now enforces owner/content compatibility, trusted discovery provenance,
+  redirect-by-redirect and final-URL validation, strict model verdicts, non-negative passage
+  locators, source/passages budgets, a 90-second deadline, and fail-closed publication receipts.
+- Generic harness final packages are bound to the complete discovered candidate plus matching
+  retrieve, inspect, and supported claim/source/locator observations; fabricated excerpts,
+  substituted sources, duplicate call IDs, and early publication are rejected.
+- OpenAlex/Crossref results are DOI-normalized, interleaved with curated candidates, and clearly
+  labelled as discovery metadata rather than already-certified evidence.
+- Section 04 distinguishes A-grade candidates from claims that passed original-document
+  verification and displays final URL, content SHA-256, authority basis, run bounds, usage, and
+  duration. The existing occupation-specific query mapping was preserved.
+- Static/API cache headers, latest and content-hash ETags, collision-safe policy artifact paths,
+  and the detailed application/CloudFront/cache-key strategy are implemented or documented.
+
+### Test checkpoint
+
+Status: PASS
+
+- Backend: Python 3.12-targeted `ruff check .` passed; pytest reported `46 passed, 4 deselected`.
+  The two warnings are existing FastAPI/Starlette test-utility deprecations.
+- Frontend: TypeScript and Vite production build passed; Vitest reported `4 passed` across two
+  files.
+- Negative regressions cover unsupported/malformed/negative-index model verdicts, redirect to a
+  private endpoint before the second request, missing verification receipts, source/excerpt
+  substitution, premature publication, duplicate DOI results, and fresh/stale/versioned ETags.
+- GitHub Actions now runs both Python 3.12 backend lint/tests and Node 22 frontend build/tests.
+
+### Review checkpoint
+
+Status: PASS
+
+- Independent final review found and verified fixes for stale-dashboard 304 behavior, mutable
+  run-specific dashboards incorrectly marked immutable, CI test blind spots, negative passage
+  indices, source-ID substitution, and legacy claims without final-URL/hash receipts.
+- No P0/P1 or acceptance-blocking issue remains. Non-blocking hardening left for a later change:
+  stream source reads under a maximum byte budget, and pin DNS resolution/connection addresses for
+  DOI publisher redirects instead of only blocking literal private/local IP URLs.
+- AWS structured output was not enabled because support must be checked against the deployed model;
+  the current production path uses strict local Pydantic validation and fails closed instead.
+
+### Release checkpoint
+
+Status: PASS — ready for user review, not deployed
+
+- Final local lint, backend tests, frontend build/tests, and diff whitespace check passed.
+- No AWS stack, Lambda, CloudFront distribution, or live external-source smoke test was changed or
+  run in this task. Deployment and production AgentCore/CloudFront rollout remain explicit future
+  actions.
+
 ## Evidence Agent integration checkpoint — 2026-09-12
 
 Status: PASS

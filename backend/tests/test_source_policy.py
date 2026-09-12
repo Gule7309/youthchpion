@@ -26,6 +26,26 @@ class SourcePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(SourcePolicyError, "outside the authoritative allowlist"):
             SourcePolicy().validate(candidate(url="https://random-blog.example/post"))
 
+    def test_bibliographic_index_page_is_not_publishable_evidence(self):
+        with self.assertRaisesRegex(SourcePolicyError, "index metadata cannot be published"):
+            SourcePolicy().validate(candidate(url="https://openalex.org/W123"))
+
+    def test_final_redirect_is_revalidated(self):
+        source = candidate(
+            url="https://doi.org/10.1000/example",
+            owner_type=SourceOwnerType.INDIVIDUAL_SCHOLAR,
+            content_type=ContentType.PEER_REVIEWED_ARTICLE,
+            doi="10.1000/example",
+        )
+        with self.assertRaisesRegex(SourcePolicyError, "redirected to news"):
+            SourcePolicy().validate_retrieval(source, "https://news.bbc.com/story")
+
+    def test_private_redirect_is_rejected(self):
+        with self.assertRaisesRegex(SourcePolicyError, "private or local"):
+            SourcePolicy().validate_retrieval(
+                candidate(), "http://169.254.169.254/latest/meta-data"
+            )
+
     def test_company_survey_requires_approval_and_methodology(self):
         policy = SourcePolicy(approved_company_domains=frozenset({"example.com"}))
         with self.assertRaisesRegex(SourcePolicyError, "methodology"):

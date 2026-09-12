@@ -55,6 +55,7 @@ export interface EvidenceItem {
   url: string
   retrieved_at: string
   freshness: Freshness
+  discovery_source?: 'curated' | 'openalex' | 'crossref' | 'unknown'
 }
 
 export interface CleaningAudit {
@@ -111,6 +112,26 @@ export interface VerifiedClaim {
   limitations: string[]
   source_title: string
   source_url: string
+  retrieved_url?: string
+  content_sha256?: string
+  authority_basis?: string
+}
+
+export interface EvidenceHarnessSummary {
+  schema_version: string
+  prompt_version: string
+  searched_candidates: number
+  selected_sources: number
+  retrieved_sources: number
+  model_calls: number
+  approved_claims: number
+  rejected_sources: number
+  input_tokens: number
+  output_tokens: number
+  duration_ms: number
+  max_sources: number
+  max_passages_per_source: number
+  deadline_seconds: number
 }
 
 export interface EvidenceVerification {
@@ -124,4 +145,5 @@ export interface EvidenceVerification {
   claims: VerifiedClaim[]
   gaps: string[]
   agent_steps: string[]
+  harness?: EvidenceHarnessSummary
 }

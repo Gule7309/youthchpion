@@ -55,3 +55,40 @@ async def test_evidence_search_calls_both_live_indexes_and_keeps_live_candidates
     assert any(item.title == "Live AI employment study" for item in items)
     assert any(item.title == "Live youth skills study" for item in items)
     assert all(call[1] for call in http.calls)
+
+
+@pytest.mark.asyncio
+async def test_evidence_search_deduplicates_canonical_doi_variants() -> None:
+    class DuplicateDoiHttp:
+        async def get(self, url: str, params: dict | None = None) -> HttpPayload:
+            del params
+            if url == OPENALEX_URL:
+                body = {
+                    "results": [{
+                        "doi": "https://doi.org/10.1000/SAME",
+                        "display_name": "Same study",
+                        "type": "article",
+                        "primary_location": {"source": {"display_name": "Journal"}},
+                    }]
+                }
+            else:
+                body = {
+                    "message": {"items": [{
+                        "DOI": "10.1000/same",
+                        "URL": "https://doi.org/10.1000/same",
+                        "title": ["Same study from Crossref"],
+                        "publisher": "Publisher",
+                        "type": "journal-article",
+                    }]}
+                }
+            return HttpPayload(
+                url=url,
+                status_code=200,
+                content_type="application/json",
+                body=json.dumps(body).encode(),
+            )
+
+    items = await EvidenceService(DuplicateDoiHttp()).search("AI employment", 12)
+
+    matches = [item for item in items if item.doi and "10.1000" in item.doi.lower()]
+    assert len(matches) == 1

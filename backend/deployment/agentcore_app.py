@@ -10,7 +10,6 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 from app.evidence_harness.contracts import ResearchRequest
 
-
 app = BedrockAgentCoreApp()
 
 

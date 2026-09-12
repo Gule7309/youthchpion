@@ -8,7 +8,20 @@
 允許的來源擁有者只有：個別學者、政府、國際組織、研究機構，以及有公開方法且經網域核准的企業
 調查。搜尋結果摘要與 bibliographic metadata 只能協助定位文件，不能直接支撐主張。
 
-## 最終架構
+## 目前 competition runtime
+
+`/v1/evidence/verify` 目前在既有 API Lambda 內執行 `AuthorityEvidenceAgent`。production path 使用固定的
+discover → retrieve → validate-final-URL → inspect → Bedrock-verify → publication-gate 流程，最多三個
+來源、每來源十二段送入模型、總 deadline 90 秒。回應保存 prompt version、來源數、模型呼叫數、token、
+耗時、實際取回 URL 與原文 SHA-256。候選來源的 A/B/C tier 只是排序 metadata；只有取得上述 receipt
+的 claim 才能在 UI 顯示為「已通過原文認證」，也只有 receipt 欄位完整的 claim 能送入政策生成；
+舊版缺少 receipt 的儲存紀錄會 fail closed。
+
+獨立的 `EvidenceHarness` 是 AgentCore topology 的 contract/runtime prototype；它現在也會把最終 package
+綁回同一次執行的 discover、retrieve、inspect 與 supported verification observations。它尚未取代 API
+Lambda 的 in-process runtime，因此不能把 prototype 測試結果當作 production trace。
+
+## AgentCore 目標架構
 
 ```mermaid
 flowchart TB
@@ -90,7 +103,8 @@ methodology 檢查。
 
 ## AWS 部署邊界
 
-1. 將 `backend` 建成 Python 3.11 container，安裝 `.[aws]`，用 `deployment/agentcore_app.py` 作入口。
+1. 將 `backend` 建成 Python 3.12 container，安裝 runtime dependencies，並用
+   `deployment/agentcore_app.py` 作入口。
 2. AgentCore Runtime role 只需 `bedrock:InvokeModel` 與五個指定 Lambda 的 `lambda:InvokeFunction`。
 3. 每個工具 Lambda 使用獨立 role；探索工具的 egress 僅允許核准 API／官方來源。
 4. API key 存 Secrets Manager，不放 prompt、環境回傳或 trace。

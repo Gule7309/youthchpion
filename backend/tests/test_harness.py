@@ -33,7 +33,9 @@ def registry(policy):
         {
             "discover_evidence": lambda _: [SOURCE],
             "retrieve_candidate": lambda _: {"body": "document"},
-            "inspect_document": lambda _: {"excerpts": ["supported passage"]},
+            "inspect_document": lambda _: {
+                "excerpts": [{"text": "supported passage", "locator": "p. 12"}]
+            },
             "verify_claim_support": lambda _: {"supported": True},
             "search_policy_knowledge_base": lambda _: [],
         },
@@ -54,7 +56,13 @@ class HarnessTests(unittest.TestCase):
             ToolCall("2", "retrieve_candidate", {"source_id": "oecd-1"}),
             ToolCall("3", "inspect_document", {"source_id": "oecd-1", "claim_ids": ["claim-1"]}),
             ToolCall(
-                "4", "verify_claim_support", {"claim_id": "claim-1", "source_ids": ["oecd-1"]}
+                "4",
+                "verify_claim_support",
+                {
+                    "claim_id": "claim-1",
+                    "source_ids": ["oecd-1"],
+                    "excerpt_locators": ["p. 12"],
+                },
             ),
             FinalAnswer(package()),
         ]
@@ -72,6 +80,125 @@ class HarnessTests(unittest.TestCase):
         with self.assertRaisesRegex(ToolProtocolError, "before verification"):
             harness.run(ResearchRequest("What changes?"))
 
+    def test_cannot_publish_after_inspection_without_supported_verification(self):
+        actions = [
+            ToolCall("1", "discover_evidence", {"query": "AI employment"}),
+            ToolCall("2", "retrieve_candidate", {"source_id": "oecd-1"}),
+            ToolCall("3", "inspect_document", {"source_id": "oecd-1", "claim_ids": ["claim-1"]}),
+            FinalAnswer(package()),
+        ]
+        policy = SourcePolicy()
+        harness = EvidenceHarness(
+            ScriptedProvider(actions), registry(policy), PublicationGate(policy)
+        )
+
+        with self.assertRaisesRegex(ToolProtocolError, "without a supported verification"):
+            harness.run(ResearchRequest("What changes?"))
+
+    def test_negative_verification_cannot_be_published(self):
+        policy = SourcePolicy()
+        tools = build_tool_registry(
+            {
+                "discover_evidence": lambda _: [SOURCE],
+                "retrieve_candidate": lambda _: {"body": "document"},
+                "inspect_document": lambda _: {
+                    "excerpts": [{"text": "supported passage", "locator": "p. 12"}]
+                },
+                "verify_claim_support": lambda _: {"supported": False},
+                "search_policy_knowledge_base": lambda _: [],
+            },
+            policy,
+        )
+        actions = [
+            ToolCall("1", "discover_evidence", {"query": "AI employment"}),
+            ToolCall("2", "retrieve_candidate", {"source_id": "oecd-1"}),
+            ToolCall("3", "inspect_document", {"source_id": "oecd-1", "claim_ids": ["claim-1"]}),
+            ToolCall(
+                "4",
+                "verify_claim_support",
+                {
+                    "claim_id": "claim-1",
+                    "source_ids": ["oecd-1"],
+                    "excerpt_locators": ["p. 12"],
+                },
+            ),
+            FinalAnswer(package()),
+        ]
+
+        with self.assertRaisesRegex(ToolProtocolError, "without a supported verification"):
+            EvidenceHarness(ScriptedProvider(actions), tools, PublicationGate(policy)).run(
+                ResearchRequest("What changes?")
+            )
+
+    def test_published_excerpt_must_match_inspection_output(self):
+        policy = SourcePolicy()
+        tools = registry(policy)
+        actions = [
+            ToolCall("1", "discover_evidence", {"query": "AI employment"}),
+            ToolCall("2", "retrieve_candidate", {"source_id": "oecd-1"}),
+            ToolCall("3", "inspect_document", {"source_id": "oecd-1", "claim_ids": ["claim-1"]}),
+            ToolCall(
+                "4",
+                "verify_claim_support",
+                {
+                    "claim_id": "claim-1",
+                    "source_ids": ["oecd-1"],
+                    "excerpt_locators": ["p. 12"],
+                },
+            ),
+        ]
+        wrong_excerpt = EvidenceExcerpt("oecd-1", "fabricated passage", "p. 12", ("claim-1",))
+        wrong_item = EvidenceItem(
+            "claim-1", "AI changes task composition", SOURCE, (wrong_excerpt,), "direct"
+        )
+        actions.append(FinalAnswer(EvidencePackage("What changes?", (wrong_item,))))
+
+        with self.assertRaisesRegex(ToolProtocolError, "was not inspected"):
+            EvidenceHarness(ScriptedProvider(actions), tools, PublicationGate(policy)).run(
+                ResearchRequest("What changes?")
+            )
+
+    def test_published_source_must_match_discovery_receipt(self):
+        policy = SourcePolicy()
+        actions = [
+            ToolCall("1", "discover_evidence", {"query": "AI employment"}),
+            ToolCall("2", "retrieve_candidate", {"source_id": "oecd-1"}),
+            ToolCall(
+                "3", "inspect_document", {"source_id": "oecd-1", "claim_ids": ["claim-1"]}
+            ),
+            ToolCall(
+                "4",
+                "verify_claim_support",
+                {
+                    "claim_id": "claim-1",
+                    "source_ids": ["oecd-1"],
+                    "excerpt_locators": ["p. 12"],
+                },
+            ),
+        ]
+        substituted_source = SourceCandidate(
+            source_id="oecd-1",
+            title="Different OECD report",
+            url="https://oecd.org/different-report.pdf",
+            owner_type=SourceOwnerType.INTERNATIONAL_ORGANIZATION,
+            content_type=ContentType.INTERNATIONAL_REPORT,
+            publisher="OECD",
+        )
+        excerpt = EvidenceExcerpt("oecd-1", "supported passage", "p. 12", ("claim-1",))
+        item = EvidenceItem(
+            "claim-1",
+            "AI changes task composition",
+            substituted_source,
+            (excerpt,),
+            "direct",
+        )
+        actions.append(FinalAnswer(EvidencePackage("What changes?", (item,))))
+
+        with self.assertRaisesRegex(ToolProtocolError, "differs from discovery receipt"):
+            EvidenceHarness(
+                ScriptedProvider(actions), registry(policy), PublicationGate(policy)
+            ).run(ResearchRequest("What changes?"))
+
     def test_max_steps_is_enforced(self):
         policy = SourcePolicy()
         actions = [ToolCall("1", "discover_evidence", {"query": "x"})]
@@ -86,7 +213,13 @@ class HarnessTests(unittest.TestCase):
 
     def test_tool_is_rejected_outside_its_phase(self):
         policy = SourcePolicy()
-        actions = [ToolCall("1", "verify_claim_support", {"claim_id": "c", "source_ids": []})]
+        actions = [
+            ToolCall(
+                "1",
+                "verify_claim_support",
+                {"claim_id": "c", "source_ids": [], "excerpt_locators": []},
+            )
+        ]
         harness = EvidenceHarness(
             ScriptedProvider(actions), registry(policy), PublicationGate(policy)
         )

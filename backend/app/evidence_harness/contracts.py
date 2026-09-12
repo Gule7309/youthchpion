@@ -105,6 +105,7 @@ class ToolObservation:
     call_id: str
     tool_name: str
     output: Any
+    arguments: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

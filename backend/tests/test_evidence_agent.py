@@ -13,7 +13,8 @@ from app.models import EvidenceItem, FreshnessStatus
 
 
 class FakeHttp:
-    async def get(self, url: str) -> HttpPayload:
+    async def get(self, url: str, redirect_validator=None) -> HttpPayload:
+        del redirect_validator
         return HttpPayload(
             url=url,
             status_code=200,
@@ -67,6 +68,11 @@ async def test_authority_agent_retrieves_original_passage_and_publishes(monkeypa
     assert result.approved_evidence_ids == ["authority_ilo"]
     assert result.claims[0].locator == "HTML block 1"
     assert result.claims[0].excerpt.startswith("This report examines")
+    assert result.claims[0].content_sha256
+    assert str(result.claims[0].retrieved_url) == "https://ilo.org/report"
+    assert result.harness is not None
+    assert result.harness.model_calls == 1
+    assert result.harness.approved_claims == 1
 
 
 @pytest.mark.asyncio
@@ -142,3 +148,91 @@ async def test_authority_agent_reports_gap_when_source_policy_rejects_news(monke
     assert result.status == "PARTIAL"
     assert not result.approved_evidence_ids
     assert "來源規則未通過" in result.gaps[0]
+
+
+@pytest.mark.asyncio
+async def test_authority_agent_rejects_redirect_to_news_before_bedrock(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.evidence_agent.settings",
+        replace(settings, bedrock_model_id="test-model", bedrock_min_interval_ms=0),
+    )
+
+    class RedirectHttp:
+        async def get(self, url: str, redirect_validator=None) -> HttpPayload:
+            del url
+            if redirect_validator:
+                redirect_validator("https://news.bbc.com/story")
+            return HttpPayload(
+                url="https://news.bbc.com/story",
+                status_code=200,
+                content_type="text/html",
+                body=b"<main><p>This paragraph is long enough to be selected as evidence. "
+                b"It is nevertheless a prohibited media redirect and must be rejected.</p></main>",
+            )
+
+    item = EvidenceItem(
+        evidence_id="oa_redirect",
+        title="Indexed article",
+        institution="Test Journal",
+        published_at="2026",
+        evidence_type="article",
+        authority_tier="B",
+        doi="https://doi.org/10.1000/redirect",
+        url="https://doi.org/10.1000/redirect",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.LIVE,
+        discovery_source="openalex",
+    )
+    agent = AuthorityEvidenceAgent(http=RedirectHttp())
+    called = False
+
+    def converse(_: dict) -> str:
+        nonlocal called
+        called = True
+        return "{}"
+
+    monkeypatch.setattr(agent, "_converse", converse)
+
+    result = await agent.verify("run_test", "What changes?", [item])
+
+    assert result.status == "PARTIAL"
+    assert not result.approved_evidence_ids
+    assert "原文取回失敗" in result.gaps[0]
+    assert called is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "not json",
+        '{"supported":"false","claim":null,"passage_index":null,"support":null,"limitations":[]}',
+        '{"supported":true,"claim":"claim","passage_index":true,"support":"direct","limitations":[]}',
+        '{"supported":true,"claim":"claim","passage_index":-1,"support":"direct","limitations":[]}',
+        '{"supported":true,"claim":"claim","passage_index":0,"support":"direct","limitations":"none"}',
+    ],
+)
+async def test_invalid_model_contract_fails_closed(monkeypatch, raw: str) -> None:
+    monkeypatch.setattr(
+        "app.evidence_agent.settings",
+        replace(settings, bedrock_model_id="test-model", bedrock_min_interval_ms=0),
+    )
+    item = EvidenceItem(
+        evidence_id="authority_ilo",
+        title="Generative AI and Jobs",
+        institution="International Labour Organization",
+        published_at="2025",
+        evidence_type="international technical report",
+        authority_tier="A",
+        url="https://ilo.org/report",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.VERSIONED,
+    )
+    agent = AuthorityEvidenceAgent(http=FakeHttp())
+    monkeypatch.setattr(agent, "_converse", lambda _: raw)
+
+    result = await agent.verify("run_test", "What changes?", [item])
+
+    assert result.status == "PARTIAL"
+    assert not result.claims
+    assert "Bedrock 核對失敗" in result.gaps[0]

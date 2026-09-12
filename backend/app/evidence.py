@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 
 from app.http import RetryingHttpClient
@@ -110,18 +111,32 @@ def _abstract(inverted: dict[str, list[int]] | None) -> str | None:
     return " ".join(word for _, word in ordered)[:900]
 
 
+def _canonical_identity(item: EvidenceItem) -> str:
+    if item.doi:
+        doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", item.doi, flags=re.IGNORECASE)
+        return f"doi:{doi.strip().lower()}"
+    return f"title:{' '.join(item.title.casefold().split())}"
+
+
+def _interleave(*groups: list[EvidenceItem]):
+    for index in range(max((len(group) for group in groups), default=0)):
+        for group in groups:
+            if index < len(group):
+                yield group[index]
+
+
 def parse_openalex(body: bytes) -> list[EvidenceItem]:
     results = json.loads(body).get("results", [])
     items: list[EvidenceItem] = []
     now = datetime.now(UTC)
     for work in results:
-        url = work.get("doi") or work.get("id")
-        if not url:
+        doi = work.get("doi")
+        if not doi:
             continue
         source = ((work.get("primary_location") or {}).get("source") or {}).get("display_name")
         items.append(
             EvidenceItem(
-                evidence_id=_evidence_id("oa", str(url)),
+                evidence_id=_evidence_id("oa", str(doi)),
                 title=work.get("display_name") or "Untitled research",
                 institution=source or "OpenAlex indexed research",
                 authors=[
@@ -139,10 +154,11 @@ def parse_openalex(body: bytes) -> list[EvidenceItem]:
                     "OpenAlex metadata; inspect the full text before treating it as "
                     "causal evidence."
                 ),
-                doi=work.get("doi"),
-                url=url,
+                doi=doi,
+                url=doi,
                 retrieved_at=now,
                 freshness=FreshnessStatus.LIVE,
+                discovery_source="openalex",
             )
         )
     return items
@@ -182,6 +198,7 @@ def parse_crossref(body: bytes) -> list[EvidenceItem]:
                 url=url,
                 retrieved_at=now,
                 freshness=FreshnessStatus.LIVE,
+                discovery_source="crossref",
             )
         )
     return items
@@ -204,6 +221,7 @@ def curated_evidence() -> list[EvidenceItem]:
             url=item["url"],
             retrieved_at=now,
             freshness=FreshnessStatus.VERSIONED,
+            discovery_source="curated",
         )
         for item in CURATED_EVIDENCE
     ]
@@ -221,16 +239,16 @@ class EvidenceService:
         )
         crossref_call = self.http.get(CROSSREF_URL, params={"query": query, "rows": per_source})
         results = await asyncio.gather(openalex_call, crossref_call, return_exceptions=True)
-        merged: list[EvidenceItem] = curated_evidence()
+        groups = [curated_evidence()]
         if not isinstance(results[0], Exception):
-            merged.extend(parse_openalex(results[0].body))
+            groups.append(parse_openalex(results[0].body))
         if not isinstance(results[1], Exception):
-            merged.extend(parse_crossref(results[1].body))
+            groups.append(parse_crossref(results[1].body))
 
         deduped: list[EvidenceItem] = []
         seen: set[str] = set()
-        for item in merged:
-            identity = (item.doi or item.title).lower()
+        for item in _interleave(*groups):
+            identity = _canonical_identity(item)
             if identity in seen:
                 continue
             seen.add(identity)
