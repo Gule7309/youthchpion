@@ -1,7 +1,7 @@
 import unittest
 
-from youth_champion.evidence_harness.contracts import ContentType, SourceCandidate, SourceOwnerType
-from youth_champion.evidence_harness.source_policy import SourcePolicy, SourcePolicyError
+from app.evidence_harness.contracts import ContentType, SourceCandidate, SourceOwnerType
+from app.evidence_harness.source_policy import SourcePolicy, SourcePolicyError
 
 
 def candidate(**overrides):

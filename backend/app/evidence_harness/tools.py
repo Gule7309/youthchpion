@@ -104,4 +104,3 @@ def default_tool_schemas() -> dict[str, dict[str, Any]]:
             "additionalProperties": False,
         },
     }
-

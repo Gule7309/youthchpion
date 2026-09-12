@@ -29,4 +29,3 @@ def evidence_package_from_dict(raw: dict[str, Any]) -> EvidencePackage:
         )
         items.append(EvidenceItem(value["claim_id"], value["claim"], source, excerpts, value["support"], tuple(value.get("limitations", ()))))
     return EvidencePackage(question=raw["question"], items=tuple(items), gaps=tuple(raw.get("gaps", ())))
-

@@ -1,2 +1,0 @@
-"""Youth Champion backend services."""
-

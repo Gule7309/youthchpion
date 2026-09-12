@@ -4,12 +4,12 @@ import json
 import os
 from typing import Any
 
-from .evidence_harness.bedrock import BedrockConverseProvider
-from .evidence_harness.contracts import ContentType, SourceCandidate, SourceOwnerType
-from .evidence_harness.factory import build_tool_registry
-from .evidence_harness.runner import EvidenceHarness, HarnessConfig
-from .evidence_harness.source_policy import SourcePolicy
-from .evidence_harness.validation import PublicationGate
+from .bedrock import BedrockConverseProvider
+from .contracts import ContentType, SourceCandidate, SourceOwnerType
+from .factory import build_tool_registry
+from .runner import EvidenceHarness, HarnessConfig
+from .source_policy import SourcePolicy
+from .validation import PublicationGate
 
 
 class LambdaToolHandlers:
@@ -76,4 +76,3 @@ def _candidate(raw: dict[str, Any]) -> SourceCandidate:
 
 def _csv_set(name: str) -> frozenset[str]:
     return frozenset(value.strip().lower() for value in os.getenv(name, "").split(",") if value.strip())
-

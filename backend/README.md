@@ -5,15 +5,15 @@ Python 3.11 的權威證據研究 Harness。核心套件無第三方相依，可
 
 ```bash
 cd backend
-PYTHONPATH=src python -m unittest discover -s tests -v
-python -m compileall -q src deployment
+python -m unittest discover -s tests -v
+python -m compileall -q app deployment
 ```
 
 AWS Runtime 使用 Bedrock Converse 作為模型 provider，並把五個工具映射到各自具最小 IAM 權限的
 Lambda。安裝與啟動範例：
 
 ```bash
-python -m pip install -e '.[aws]'
+python -m pip install -e . -r agentcore-requirements.txt
 export BEDROCK_MODEL_ID='your-bedrock-model-id'
 export DISCOVER_EVIDENCE_FUNCTION='yc-discover-evidence'
 export RETRIEVE_CANDIDATE_FUNCTION='yc-retrieve-candidate'

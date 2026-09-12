@@ -23,4 +23,3 @@ def build_tool_registry(handlers: dict[str, Callable[[dict[str, Any]], Any]], po
     for name, schema in schemas.items():
         registry.register(Tool(name, descriptions[name], schema, handlers[name]))
     return registry
-

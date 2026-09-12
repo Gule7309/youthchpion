@@ -38,4 +38,3 @@ class EvidenceHarness:
                 return self.gate.validate(request, action.package)
             raise ToolProtocolError(f"unsupported provider action: {type(action).__name__}")
         raise ToolProtocolError(f"maximum step count exceeded: {self.config.max_steps}")
-

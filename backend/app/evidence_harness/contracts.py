@@ -113,4 +113,3 @@ class HarnessState:
     phase: AgentPhase = AgentPhase.SEARCHING
     observations: list[ToolObservation] = field(default_factory=list)
     step: int = 0
-

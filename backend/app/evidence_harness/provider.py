@@ -19,4 +19,3 @@ class ScriptedProvider:
     def next_action(self, state: HarnessState, tool_schemas: list[dict]) -> AgentAction:
         del state, tool_schemas
         return next(self._actions)
-

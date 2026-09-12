@@ -1,6 +1,6 @@
 import unittest
 
-from youth_champion.evidence_harness.contracts import (
+from app.evidence_harness.contracts import (
     ContentType,
     EvidenceExcerpt,
     EvidenceItem,
@@ -11,12 +11,12 @@ from youth_champion.evidence_harness.contracts import (
     SourceOwnerType,
     ToolCall,
 )
-from youth_champion.evidence_harness.factory import build_tool_registry
-from youth_champion.evidence_harness.provider import ScriptedProvider
-from youth_champion.evidence_harness.runner import EvidenceHarness, HarnessConfig
-from youth_champion.evidence_harness.source_policy import SourcePolicy
-from youth_champion.evidence_harness.tools import ToolProtocolError
-from youth_champion.evidence_harness.validation import PublicationGate
+from app.evidence_harness.factory import build_tool_registry
+from app.evidence_harness.provider import ScriptedProvider
+from app.evidence_harness.runner import EvidenceHarness, HarnessConfig
+from app.evidence_harness.source_policy import SourcePolicy
+from app.evidence_harness.tools import ToolProtocolError
+from app.evidence_harness.validation import PublicationGate
 
 
 SOURCE = SourceCandidate(

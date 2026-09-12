@@ -8,7 +8,7 @@ import os
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-from youth_champion.evidence_harness.contracts import ResearchRequest
+from app.evidence_harness.contracts import ResearchRequest
 
 
 app = BedrockAgentCoreApp()
@@ -16,7 +16,7 @@ app = BedrockAgentCoreApp()
 
 @app.entrypoint
 def invoke(payload: dict) -> dict:
-    from youth_champion.runtime import build_evidence_harness
+    from app.evidence_harness.runtime import build_evidence_harness
 
     harness = build_evidence_harness(model_id=os.environ["BEDROCK_MODEL_ID"])
     request = ResearchRequest(
@@ -30,4 +30,3 @@ def invoke(payload: dict) -> dict:
 
 if __name__ == "__main__":
     app.run()
-

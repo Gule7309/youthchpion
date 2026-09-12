@@ -38,4 +38,3 @@ class PublicationGate:
             gaps = tuple(dict.fromkeys((*package.gaps, *(f"missing claim: {x}" for x in missing))))
             return replace(package, gaps=gaps, status=AgentPhase.PARTIAL)
         return replace(package, status=AgentPhase.COMPLETED)
-
