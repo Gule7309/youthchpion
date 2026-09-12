@@ -6,7 +6,6 @@ from typing import Any
 
 from .contracts import AgentAction, FinalAnswer, HarnessState, ToolCall
 
-
 SYSTEM_PROMPT = """You are the Youth Champion evidence researcher.
 Only seek original scholarly work or official pages from scholars, governments,
 international organizations, research institutions, and methodology-backed company surveys.

@@ -65,7 +65,9 @@ class SourcePolicy:
             if not candidate.methodology_url:
                 raise SourcePolicyError("company survey is missing a methodology URL")
             if self._host(candidate.methodology_url) != host:
-                raise SourcePolicyError("company survey methodology must use the same approved domain")
+                raise SourcePolicyError(
+                    "company survey methodology must use the same approved domain"
+                )
             return
 
         if not self._is_authoritative_host(host):

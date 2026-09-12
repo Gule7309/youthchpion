@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .contracts import AgentPhase, EvidencePackage, FinalAnswer, HarnessState, ResearchRequest, ToolCall, ToolObservation
+from .contracts import (
+    AgentPhase,
+    EvidencePackage,
+    FinalAnswer,
+    HarnessState,
+    ResearchRequest,
+    ToolCall,
+    ToolObservation,
+)
 from .provider import ModelProvider
 from .tools import ToolProtocolError, ToolRegistry
 from .validation import PublicationGate
@@ -16,7 +24,13 @@ class HarnessConfig:
 class EvidenceHarness:
     """Bounded state machine around an interchangeable model provider and tool registry."""
 
-    def __init__(self, provider: ModelProvider, tools: ToolRegistry, gate: PublicationGate, config: HarnessConfig | None = None):
+    def __init__(
+        self,
+        provider: ModelProvider,
+        tools: ToolRegistry,
+        gate: PublicationGate,
+        config: HarnessConfig | None = None,
+    ):
         self.provider = provider
         self.tools = tools
         self.gate = gate

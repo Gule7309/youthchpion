@@ -18,7 +18,6 @@ from app.evidence_harness.source_policy import SourcePolicy
 from app.evidence_harness.tools import ToolProtocolError
 from app.evidence_harness.validation import PublicationGate
 
-
 SOURCE = SourceCandidate(
     source_id="oecd-1",
     title="OECD Employment Outlook",
@@ -30,13 +29,16 @@ SOURCE = SourceCandidate(
 
 
 def registry(policy):
-    return build_tool_registry({
-        "discover_evidence": lambda _: [SOURCE],
-        "retrieve_candidate": lambda _: {"body": "document"},
-        "inspect_document": lambda _: {"excerpts": ["supported passage"]},
-        "verify_claim_support": lambda _: {"supported": True},
-        "search_policy_knowledge_base": lambda _: [],
-    }, policy)
+    return build_tool_registry(
+        {
+            "discover_evidence": lambda _: [SOURCE],
+            "retrieve_candidate": lambda _: {"body": "document"},
+            "inspect_document": lambda _: {"excerpts": ["supported passage"]},
+            "verify_claim_support": lambda _: {"supported": True},
+            "search_policy_knowledge_base": lambda _: [],
+        },
+        policy,
+    )
 
 
 def package():
@@ -51,18 +53,22 @@ class HarnessTests(unittest.TestCase):
             ToolCall("1", "discover_evidence", {"query": "AI employment"}),
             ToolCall("2", "retrieve_candidate", {"source_id": "oecd-1"}),
             ToolCall("3", "inspect_document", {"source_id": "oecd-1", "claim_ids": ["claim-1"]}),
-            ToolCall("4", "verify_claim_support", {"claim_id": "claim-1", "source_ids": ["oecd-1"]}),
+            ToolCall(
+                "4", "verify_claim_support", {"claim_id": "claim-1", "source_ids": ["oecd-1"]}
+            ),
             FinalAnswer(package()),
         ]
         policy = SourcePolicy()
-        result = EvidenceHarness(ScriptedProvider(actions), registry(policy), PublicationGate(policy)).run(
-            ResearchRequest("What changes?", required_claims=("claim-1",))
-        )
+        result = EvidenceHarness(
+            ScriptedProvider(actions), registry(policy), PublicationGate(policy)
+        ).run(ResearchRequest("What changes?", required_claims=("claim-1",)))
         self.assertEqual(result.status.value, "completed")
 
     def test_cannot_publish_before_verification(self):
         policy = SourcePolicy()
-        harness = EvidenceHarness(ScriptedProvider([FinalAnswer(package())]), registry(policy), PublicationGate(policy))
+        harness = EvidenceHarness(
+            ScriptedProvider([FinalAnswer(package())]), registry(policy), PublicationGate(policy)
+        )
         with self.assertRaisesRegex(ToolProtocolError, "before verification"):
             harness.run(ResearchRequest("What changes?"))
 
@@ -70,7 +76,10 @@ class HarnessTests(unittest.TestCase):
         policy = SourcePolicy()
         actions = [ToolCall("1", "discover_evidence", {"query": "x"})]
         harness = EvidenceHarness(
-            ScriptedProvider(actions), registry(policy), PublicationGate(policy), HarnessConfig(max_steps=1)
+            ScriptedProvider(actions),
+            registry(policy),
+            PublicationGate(policy),
+            HarnessConfig(max_steps=1),
         )
         with self.assertRaisesRegex(ToolProtocolError, "maximum step"):
             harness.run(ResearchRequest("x"))
@@ -78,7 +87,9 @@ class HarnessTests(unittest.TestCase):
     def test_tool_is_rejected_outside_its_phase(self):
         policy = SourcePolicy()
         actions = [ToolCall("1", "verify_claim_support", {"claim_id": "c", "source_ids": []})]
-        harness = EvidenceHarness(ScriptedProvider(actions), registry(policy), PublicationGate(policy))
+        harness = EvidenceHarness(
+            ScriptedProvider(actions), registry(policy), PublicationGate(policy)
+        )
         with self.assertRaisesRegex(ToolProtocolError, "forbidden during phase"):
             harness.run(ResearchRequest("x"))
 

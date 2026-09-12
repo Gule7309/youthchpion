@@ -1,9 +1,12 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 describe('App', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
 
   it('does not replace a missing dashboard with fixture metrics', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -15,9 +18,7 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(
-      await screen.findByRole('heading', { name: /先建立第一份.*真實分析快照/ }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '青年 AI 就業風險' })).toBeInTheDocument()
     expect(screen.getByText('NO FIXTURE / NO PRETEND DATA')).toBeInTheDocument()
   })
 
@@ -63,10 +64,19 @@ describe('App', () => {
           ai_entry_jobs: 0,
           total_entry_jobs: 1,
           ai_entry_opportunity_rate: 0,
+          youth_concentration_index: 1,
+          opportunity_gap: 1,
+          transformation_priority_score: 79.4,
+          score_formula: '100 × cubic_root(A × B × H)',
           priority: 'high',
           source_snapshot_ids: ['dgbas_employment'],
         }],
-        public_opinion: [{ value: 39.5 }],
+        public_opinion: [{
+          label: '20–29歲就業網路族認為工作可能被自動化／AI取代',
+          value: 39.5,
+          unit: '%',
+          survey_year: 2024,
+        }],
         industry_context: [],
         cleaning_summary: {
           duplicates_removed: 0,
@@ -83,19 +93,49 @@ describe('App', () => {
 
     render(<App />)
 
-    expect((await screen.findAllByText('主計總處／就業結構')).length).toBeGreaterThan(0)
-    expect(screen.getByText(/本次仍有重新連線並下載/)).toBeInTheDocument()
-    expect(screen.getByText('擷取 20–24 與 25–29 歲')).toBeInTheDocument()
-    expect(screen.getByText('20–24 青年就業')).toBeInTheDocument()
-    expect(screen.getByText('實際使用欄位')).toBeInTheDocument()
+    expect((await screen.findAllByText(/主計總處／20–24 歲就業結構/)).length).toBeGreaterThan(0)
+    expect(screen.getByText('AI 轉型優先度')).toBeInTheDocument()
+    expect(screen.getAllByText(/79.4/).length).toBeGreaterThan(0)
     expect(screen.getByText('建立主分析族群與比較組。')).toBeInTheDocument()
     expect(screen.getByText('職業大類資料不能解讀為失業人數。')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '查看官方來源' })).toHaveAttribute(
+    expect(screen.getByText('查看來源說明頁 ↗')).toHaveAttribute(
       'href',
       'https://example.com/about',
     )
-    expect(screen.queryByRole('link', { name: '機器原始資料' })).not.toBeInTheDocument()
-    expect(screen.getAllByText('7 個選定職業列').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('7 個 20–24 歲職業指標').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: /原始/ })).not.toBeInTheDocument()
+  })
+
+  it('runs the authority agent before enabling policy generation', async () => {
+    const fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/v1/evidence/verify')) return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          verification_id: 'verify_test', analysis_run_id: 'run_test', status: 'COMPLETED',
+          model_id: 'test-model', verified_at: '2026-09-12T07:00:00Z',
+          approved_evidence_ids: ['ev_1'],
+          searched_candidates: [{ evidence_id: 'ev_1', title: 'ILO report', institution: 'ILO', authors: [], published_at: '2025', evidence_type: 'international report', authority_tier: 'A', method_summary: 'Task analysis', finding: 'AI changes tasks', limitations: 'Not causal', url: 'https://ilo.org/report', retrieved_at: '2026-09-12T07:00:00Z', freshness: 'VERSIONED' }],
+          gaps: [],
+          agent_steps: ['SEARCHING', 'RETRIEVING', 'VERIFYING', 'COMPLETED'],
+          claims: [{ claim_id: 'claim-1', evidence_id: 'ev_1', claim: 'AI 主要改變工作任務。', excerpt: 'A directly supporting source passage.', locator: 'HTML block 2', support: 'direct', limitations: [], source_title: 'ILO report', source_url: 'https://ilo.org/report' }],
+        }),
+      })
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          analysis_run_id: 'run_test', published_at: '2026-09-12T07:00:00Z', overall_status: 'LIVE', sources: [], summary_metrics: {},
+          occupation_signals: [{ code: '4', name: '事務支援人員', youth_employed: 10, youth_employment_share: 1, exposure_level: 'high', exposure_score: 0.5, ai_entry_jobs: 0, total_entry_jobs: 1, ai_entry_opportunity_rate: 0, youth_concentration_index: 1, opportunity_gap: 1, transformation_priority_score: 79.4, score_formula: 'formula', priority: 'high', source_snapshot_ids: [] }],
+          public_opinion: [], industry_context: [], cleaning_summary: { duplicates_removed: 0, expired_removed: 0, missing_occupation: 0, unmatched_categories: [], transform_version: 'test', before_after: [] },
+          evidence_preview: [{ evidence_id: 'ev_1', title: 'ILO report', institution: 'ILO', authors: [], published_at: '2025', evidence_type: 'international report', authority_tier: 'A', method_summary: 'Task analysis', finding: 'AI changes tasks', limitations: 'Not causal', url: 'https://ilo.org/report', retrieved_at: '2026-09-12T07:00:00Z', freshness: 'VERSIONED' }],
+        }),
+      })
+    })
+    vi.stubGlobal('fetch', fetch)
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: '執行權威證據 Agent' }))
+
+    expect(await screen.findByText('AI 主要改變工作任務。')).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith('/v1/evidence/verify', expect.objectContaining({ method: 'POST' }))
+    expect(screen.getByRole('button', { name: '產生三個政策選項' })).toBeEnabled()
   })
 })

@@ -116,22 +116,52 @@ def build_dashboard(
         )
 
     load_high = _percentile([row["load"] for row in intermediate], 0.67)
+    max_employment_share = max(
+        (float(row["youth_employment_share"] or 0) for row in intermediate),
+        default=0,
+    )
+    for row in intermediate:
+        opportunity = row["ai_entry_opportunity_rate"]
+        concentration = (
+            float(row["youth_employment_share"]) / max_employment_share
+            if max_employment_share and row["youth_employment_share"] is not None
+            else None
+        )
+        gap = 1 - float(opportunity) if opportunity is not None else None
+        score = (
+            100
+            * (
+                concentration
+                * float(row["exposure_score"])
+                * gap
+            )
+            ** (1 / 3)
+            if concentration is not None and gap is not None
+            else None
+        )
+        row["youth_concentration_index"] = concentration
+        row["opportunity_gap"] = gap
+        row["transformation_priority_score"] = score
     opportunity_values = [
         row["ai_entry_opportunity_rate"]
         for row in intermediate
         if row["ai_entry_opportunity_rate"] is not None
     ]
     opportunity_high = _percentile(opportunity_values, 0.67)
+    priority_scores = [
+        float(row["transformation_priority_score"])
+        for row in intermediate
+        if row["transformation_priority_score"] is not None
+    ]
+    priority_high = _percentile(priority_scores, 0.67)
+    priority_medium = _percentile(priority_scores, 0.33)
     signals: list[OccupationSignal] = []
     for row in intermediate:
         opportunity = row["ai_entry_opportunity_rate"]
-        if row["load"] >= load_high:
-            priority = (
-                "high" if opportunity is None or opportunity <= opportunity_high else "medium"
-            )
-        elif opportunity_high > 0 and opportunity is not None and opportunity >= opportunity_high:
-            priority = "medium"
-        elif row["load"] >= _percentile([item["load"] for item in intermediate], 0.33):
+        row_priority_score = row["transformation_priority_score"]
+        if row_priority_score is not None and row_priority_score >= priority_high:
+            priority = "high"
+        elif row_priority_score is not None and row_priority_score >= priority_medium:
             priority = "medium"
         else:
             priority = "monitor"
@@ -151,6 +181,21 @@ def build_dashboard(
                 total_entry_jobs=row["total_entry_jobs"],
                 ai_entry_opportunity_rate=(
                     round(opportunity, 4) if opportunity is not None else None
+                ),
+                youth_concentration_index=(
+                    round(row["youth_concentration_index"], 4)
+                    if row["youth_concentration_index"] is not None
+                    else None
+                ),
+                opportunity_gap=(
+                    round(row["opportunity_gap"], 4)
+                    if row["opportunity_gap"] is not None
+                    else None
+                ),
+                transformation_priority_score=(
+                    round(row["transformation_priority_score"], 1)
+                    if row["transformation_priority_score"] is not None
+                    else None
                 ),
                 priority=priority,
                 source_snapshot_ids=snapshot_ids,
@@ -196,11 +241,17 @@ def build_dashboard(
             "thresholds": {
                 "load_p67": round(load_high, 4),
                 "opportunity_p67": round(opportunity_high, 4),
+                "priority_score_p67": round(priority_high, 1),
+                "priority_score_p33": round(priority_medium, 1),
             },
             "metric_warning": (
-                "暴露負荷以 20–24 歲職業分布計算，只是優先排序訊號，"
-                "不是被取代人數、失業率或因果機率。"
+                "AI 轉型優先度以 A=20–24 歲就業集中度（本次職類內正規化）、"
+                "B=ILO 職業暴露、H=1−即時 AI 初階職缺占比計算。"
+                "它是政策排序訊號，不是被取代人數、失業率或因果機率；"
+                "產業 AI 導入 C 尚無可比職業量化值，因此不冒充納入分數。"
             ),
+            "score_formula": "100 × cubic_root(A × B × H)",
+            "score_version": "2026-09-12.1",
         },
         occupation_signals=signals,
         public_opinion=PUBLIC_OPINION,

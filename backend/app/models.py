@@ -77,6 +77,10 @@ class OccupationSignal(BaseModel):
     ai_entry_jobs: int
     total_entry_jobs: int
     ai_entry_opportunity_rate: float | None = None
+    youth_concentration_index: float | None = None
+    opportunity_gap: float | None = None
+    transformation_priority_score: float | None = None
+    score_formula: str = "100 × cubic_root(A × B × H)"
     priority: Literal["high", "medium", "monitor"]
     source_snapshot_ids: list[str]
 
@@ -97,6 +101,45 @@ class EvidenceItem(BaseModel):
     url: HttpUrl
     retrieved_at: datetime
     freshness: FreshnessStatus
+
+
+class EvidenceVerificationRequest(BaseModel):
+    analysis_run_id: str
+    evidence_ids: list[str] = Field(min_length=1, max_length=3)
+    search_query: str = Field(min_length=3, max_length=300)
+    question: str = Field(min_length=3, max_length=240)
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def unique_verification_ids(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("evidence_ids must be unique")
+        return value
+
+
+class VerifiedClaim(BaseModel):
+    claim_id: str
+    evidence_id: str
+    claim: str
+    excerpt: str
+    locator: str
+    support: str
+    limitations: list[str] = Field(default_factory=list)
+    source_title: str
+    source_url: HttpUrl
+
+
+class EvidenceVerificationResponse(BaseModel):
+    verification_id: str
+    analysis_run_id: str
+    status: Literal["COMPLETED", "PARTIAL"]
+    model_id: str
+    verified_at: datetime = Field(default_factory=utc_now)
+    approved_evidence_ids: list[str]
+    searched_candidates: list[EvidenceItem] = Field(default_factory=list)
+    claims: list[VerifiedClaim]
+    gaps: list[str] = Field(default_factory=list)
+    agent_steps: list[str] = Field(default_factory=list)
 
 
 class DashboardResponse(BaseModel):
@@ -147,6 +190,7 @@ class PolicyRequest(BaseModel):
     occupation_code: str
     policy_goal: str = Field(min_length=3, max_length=200)
     evidence_ids: list[str] = Field(min_length=1, max_length=8)
+    verification_id: str
 
     @field_validator("evidence_ids")
     @classmethod

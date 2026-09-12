@@ -56,7 +56,9 @@ def build_evidence_harness(model_id: str) -> EvidenceHarness:
     }
     registry = build_tool_registry(handlers, policy)
     config = HarnessConfig(max_steps=int(os.getenv("EVIDENCE_MAX_STEPS", "20")))
-    return EvidenceHarness(BedrockConverseProvider(model_id), registry, PublicationGate(policy), config)
+    return EvidenceHarness(
+        BedrockConverseProvider(model_id), registry, PublicationGate(policy), config
+    )
 
 
 def _candidate(raw: dict[str, Any]) -> SourceCandidate:
@@ -75,4 +77,6 @@ def _candidate(raw: dict[str, Any]) -> SourceCandidate:
 
 
 def _csv_set(name: str) -> frozenset[str]:
-    return frozenset(value.strip().lower() for value in os.getenv(name, "").split(",") if value.strip())
+    return frozenset(
+        value.strip().lower() for value in os.getenv(name, "").split(",") if value.strip()
+    )

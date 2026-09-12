@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.models import FreshnessStatus, SourceSnapshot, utc_now
 from app.pipeline import build_dashboard
 from app.sources.base import AdapterResult
@@ -74,6 +76,10 @@ def test_dashboard_calculates_youth_share_from_youth_total() -> None:
     assert clerical.youth_employment_share == 0.7
     assert professional.ai_entry_opportunity_rate == 1.0
     assert clerical.ai_entry_opportunity_rate == 0.0
+    assert professional.youth_concentration_index == pytest.approx(0.4286, abs=0.0001)
+    assert clerical.youth_concentration_index == 1.0
+    assert professional.transformation_priority_score == 0.0
+    assert clerical.transformation_priority_score == pytest.approx(84.3, abs=0.1)
     assert dashboard.summary_metrics["youth_employed_20_24"] == 100
     assert dashboard.summary_metrics["youth_employed_25_29"] == 100
     assert dashboard.cleaning_summary.crosswalk_coverage == 1.0

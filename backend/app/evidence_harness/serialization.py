@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contracts import ContentType, EvidenceExcerpt, EvidenceItem, EvidencePackage, SourceCandidate, SourceOwnerType
+from .contracts import (
+    ContentType,
+    EvidenceExcerpt,
+    EvidenceItem,
+    EvidencePackage,
+    SourceCandidate,
+    SourceOwnerType,
+)
 
 
 def evidence_package_from_dict(raw: dict[str, Any]) -> EvidencePackage:
@@ -23,9 +30,23 @@ def evidence_package_from_dict(raw: dict[str, Any]) -> EvidencePackage:
         )
         excerpts = tuple(
             EvidenceExcerpt(
-                source_id=e["source_id"], text=e["text"], locator=e["locator"], claim_ids=tuple(e["claim_ids"])
+                source_id=e["source_id"],
+                text=e["text"],
+                locator=e["locator"],
+                claim_ids=tuple(e["claim_ids"]),
             )
             for e in value.get("excerpts", [])
         )
-        items.append(EvidenceItem(value["claim_id"], value["claim"], source, excerpts, value["support"], tuple(value.get("limitations", ()))))
-    return EvidencePackage(question=raw["question"], items=tuple(items), gaps=tuple(raw.get("gaps", ())))
+        items.append(
+            EvidenceItem(
+                value["claim_id"],
+                value["claim"],
+                source,
+                excerpts,
+                value["support"],
+                tuple(value.get("limitations", ())),
+            )
+        )
+    return EvidencePackage(
+        question=raw["question"], items=tuple(items), gaps=tuple(raw.get("gaps", ()))
+    )

@@ -10,11 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.evidence import EvidenceService
+from app.evidence_agent import AuthorityEvidenceAgent, EvidenceAgentError
 from app.http import RetryingHttpClient
 from app.models import (
     DashboardResponse,
     EvidenceItem,
     EvidenceSearchRequest,
+    EvidenceVerificationRequest,
+    EvidenceVerificationResponse,
     PolicyRequest,
     PolicyResponse,
     RefreshRequest,
@@ -38,6 +41,7 @@ store = create_store()
 evidence_service = EvidenceService(RetryingHttpClient())
 pipeline = PipelineService(store, evidence_service)
 policy_service = BedrockPolicyService()
+authority_agent = AuthorityEvidenceAgent()
 running_tasks: set[asyncio.Task[None]] = set()
 
 
@@ -119,9 +123,60 @@ async def occupation(code: str) -> dict[str, Any]:
 @app.post("/v1/evidence/search", response_model=list[EvidenceItem])
 async def search_evidence(request: EvidenceSearchRequest) -> list[EvidenceItem]:
     try:
-        return await evidence_service.search(request.query, request.limit)
+        items = await evidence_service.search(request.query, request.limit)
+        for item in items:
+            store.put_json(
+                f"evidence/items/{item.evidence_id}.json",
+                item.model_dump(mode="json"),
+            )
+        return items
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"evidence_search_failed: {exc}") from exc
+
+
+def _resolve_evidence(ids: list[str]) -> list[EvidenceItem]:
+    latest = pipeline.latest_dashboard()
+    if latest:
+        for item in latest.evidence_preview:
+            evidence_service.items.setdefault(item.evidence_id, item)
+    for evidence_id in ids:
+        if evidence_id in evidence_service.items:
+            continue
+        stored = store.get_json(f"evidence/items/{evidence_id}.json")
+        if stored:
+            evidence_service.items[evidence_id] = EvidenceItem.model_validate(stored)
+    return evidence_service.resolve(ids)
+
+
+@app.post("/v1/evidence/verify", response_model=EvidenceVerificationResponse)
+async def verify_evidence(
+    request: EvidenceVerificationRequest,
+) -> EvidenceVerificationResponse:
+    latest = pipeline.latest_dashboard()
+    if not latest or latest.analysis_run_id != request.analysis_run_id:
+        raise HTTPException(status_code=409, detail="analysis_run_is_not_latest")
+    try:
+        response = await authority_agent.research(
+            request.analysis_run_id,
+            request.search_query,
+            request.question,
+            evidence_service.search,
+            request.evidence_ids,
+        )
+        for item in response.searched_candidates:
+            store.put_json(
+                f"evidence/items/{item.evidence_id}.json",
+                item.model_dump(mode="json"),
+            )
+    except KeyError as exc:
+        raise HTTPException(status_code=422, detail=f"unknown_evidence_ids: {exc}") from exc
+    except EvidenceAgentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    store.put_json(
+        f"evidence/verifications/{response.verification_id}.json",
+        response.model_dump(mode="json"),
+    )
+    return response
 
 
 @app.post("/v1/policy-options", response_model=PolicyResponse)
@@ -136,14 +191,31 @@ async def policy_options(request: PolicyRequest) -> PolicyResponse:
     if not signal:
         raise HTTPException(status_code=404, detail="occupation_not_found")
     try:
-        for item in latest.evidence_preview:
-            evidence_service.items.setdefault(item.evidence_id, item)
-        evidence = evidence_service.resolve(request.evidence_ids)
+        verification_raw = store.get_json(
+            f"evidence/verifications/{request.verification_id}.json"
+        )
+        if not verification_raw:
+            raise HTTPException(status_code=422, detail="evidence_verification_not_found")
+        verification = EvidenceVerificationResponse.model_validate(verification_raw)
+        if verification.analysis_run_id != request.analysis_run_id:
+            raise HTTPException(status_code=409, detail="evidence_verification_is_not_latest")
+        if not set(request.evidence_ids).issubset(verification.approved_evidence_ids):
+            raise HTTPException(status_code=422, detail="evidence_not_approved_by_agent")
+        evidence = _resolve_evidence(request.evidence_ids)
+        verified_claims = [
+            claim
+            for claim in verification.claims
+            if claim.evidence_id in request.evidence_ids
+        ]
     except KeyError as exc:
         raise HTTPException(status_code=422, detail=f"unknown_evidence_ids: {exc}") from exc
     try:
         response = await policy_service.generate(
-            latest.analysis_run_id, signal, request.policy_goal, evidence
+            latest.analysis_run_id,
+            signal,
+            request.policy_goal,
+            evidence,
+            verified_claims,
         )
     except PolicyGenerationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

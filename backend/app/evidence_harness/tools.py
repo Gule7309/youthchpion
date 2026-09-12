@@ -55,7 +55,9 @@ class ToolRegistry:
     def schemas(self) -> list[dict[str, Any]]:
         return [self._tools[name].schema() for name in sorted(self._tools)]
 
-    def execute(self, phase: AgentPhase, name: str, arguments: dict[str, Any]) -> tuple[Any, AgentPhase]:
+    def execute(
+        self, phase: AgentPhase, name: str, arguments: dict[str, Any]
+    ) -> tuple[Any, AgentPhase]:
         if name not in self._tools:
             raise ToolProtocolError(f"unknown tool: {name}")
         if name not in _ALLOWED_BY_PHASE.get(phase, frozenset()):
@@ -63,7 +65,9 @@ class ToolRegistry:
 
         result = self._tools[name].handler(arguments)
         if name == "discover_evidence":
-            if not isinstance(result, list) or not all(isinstance(item, SourceCandidate) for item in result):
+            if not isinstance(result, list) or not all(
+                isinstance(item, SourceCandidate) for item in result
+            ):
                 raise ToolProtocolError("discover_evidence must return list[SourceCandidate]")
             accepted, rejected = self._policy.filter(result)
             result = {"candidates": accepted, "policy_rejections": rejected}

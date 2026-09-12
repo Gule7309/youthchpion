@@ -32,6 +32,10 @@ export interface OccupationSignal {
   ai_entry_jobs: number
   total_entry_jobs: number
   ai_entry_opportunity_rate?: number
+  youth_concentration_index?: number
+  opportunity_gap?: number
+  transformation_priority_score?: number
+  score_formula: string
   priority: 'high' | 'medium' | 'monitor'
   source_snapshot_ids: string[]
 }
@@ -44,6 +48,7 @@ export interface EvidenceItem {
   published_at?: string
   evidence_type: string
   authority_tier: 'A' | 'B' | 'C' | 'D'
+  method_summary?: string
   finding?: string
   limitations?: string
   doi?: string
@@ -94,4 +99,29 @@ export interface PolicyResponse {
   options: PolicyOption[]
   warnings: string[]
   is_fixture: boolean
+}
+
+export interface VerifiedClaim {
+  claim_id: string
+  evidence_id: string
+  claim: string
+  excerpt: string
+  locator: string
+  support: string
+  limitations: string[]
+  source_title: string
+  source_url: string
+}
+
+export interface EvidenceVerification {
+  verification_id: string
+  analysis_run_id: string
+  status: 'COMPLETED' | 'PARTIAL'
+  model_id: string
+  verified_at: string
+  approved_evidence_ids: string[]
+  searched_candidates: EvidenceItem[]
+  claims: VerifiedClaim[]
+  gaps: string[]
+  agent_steps: string[]
 }

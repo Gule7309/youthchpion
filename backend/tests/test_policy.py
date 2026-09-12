@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.config import settings
-from app.models import EvidenceItem, FreshnessStatus, OccupationSignal
+from app.models import EvidenceItem, FreshnessStatus, OccupationSignal, VerifiedClaim
 from app.policy import BedrockPolicyService, PolicyGenerationError
 
 
@@ -105,6 +105,16 @@ async def test_policy_generation_corrects_an_invalid_first_contract(monkeypatch)
         freshness=FreshnessStatus.LIVE,
         evidence_type="report",
     )
+    verified_claim = VerifiedClaim(
+        claim_id="claim-1",
+        evidence_id="ev_1",
+        claim="AI changes task composition.",
+        excerpt="The study found changes in task composition.",
+        locator="HTML block 1",
+        support="direct",
+        source_title="Evidence",
+        source_url="https://example.com/evidence",
+    )
     invalid = json.dumps({"options": [option()]})
     valid = json.dumps(
         {"options": [option(), option(mechanism="職務再設計"), option(mechanism="媒合")]}
@@ -119,9 +129,13 @@ async def test_policy_generation_corrects_an_invalid_first_contract(monkeypatch)
 
     monkeypatch.setattr(service, "_converse", fake_converse)
 
-    response = await service.generate("run_1", signal, "降低技能落差", [evidence])
+    response = await service.generate(
+        "run_1", signal, "降低技能落差", [evidence], [verified_claim]
+    )
 
     assert len(response.options) == 3
     assert len(payloads) == 2
     assert "exactly three" in payloads[1]["contract_correction"]["previous_error"]
     assert payloads[0]["allowed_percentage_values"] == [0.0, 15.0, 15.2, 15.24]
+    assert payloads[0]["verified_claims"][0]["excerpt"].startswith("The study")
+    assert "finding" not in payloads[0]["evidence_metadata"][0]

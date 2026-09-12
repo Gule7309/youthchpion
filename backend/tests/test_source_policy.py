@@ -29,20 +29,24 @@ class SourcePolicyTests(unittest.TestCase):
     def test_company_survey_requires_approval_and_methodology(self):
         policy = SourcePolicy(approved_company_domains=frozenset({"example.com"}))
         with self.assertRaisesRegex(SourcePolicyError, "methodology"):
-            policy.validate(candidate(
-                url="https://example.com/survey",
-                owner_type=SourceOwnerType.COMPANY,
-                content_type=ContentType.COMPANY_SURVEY,
-            ))
+            policy.validate(
+                candidate(
+                    url="https://example.com/survey",
+                    owner_type=SourceOwnerType.COMPANY,
+                    content_type=ContentType.COMPANY_SURVEY,
+                )
+            )
 
     def test_approved_company_survey_is_allowed(self):
         policy = SourcePolicy(approved_company_domains=frozenset({"example.com"}))
-        policy.validate(candidate(
-            url="https://example.com/survey",
-            owner_type=SourceOwnerType.COMPANY,
-            content_type=ContentType.COMPANY_SURVEY,
-            methodology_url="https://example.com/survey/methodology",
-        ))
+        policy.validate(
+            candidate(
+                url="https://example.com/survey",
+                owner_type=SourceOwnerType.COMPANY,
+                content_type=ContentType.COMPANY_SURVEY,
+                methodology_url="https://example.com/survey/methodology",
+            )
+        )
 
 
 if __name__ == "__main__":
