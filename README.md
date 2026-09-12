@@ -100,4 +100,4 @@ AWS credentials 只能由執行環境提供，不得提交至 repository。請�
 
 ## AWS deployment
 
-`infra/template.yaml` 是完整的 SAM/CloudFormation 定義。部署時先將 Linux Lambda bundle 建到 template 的 `CodeUri`，再執行 `aws cloudformation package` 與 `aws cloudformation deploy`。目前 competition stack 名稱為 `youthchpion-demo`；執行環境透過 CloudFormation 注入 bucket、region 與 Bedrock model id，不需也不得將 AWS key 寫入專案。
+`infra/template.yaml` 是完整的 SAM/CloudFormation 定義。部署時先將 Python 3.13 Linux bundle 建到 `build/lambda-agent`，再執行 `aws cloudformation package` 與 `aws cloudformation deploy`。目前 competition stack 名稱為 `youthchpion-demo`；執行環境透過 CloudFormation 注入 bucket、region 與 Bedrock model id，不需也不得將 AWS key 寫入專案。
