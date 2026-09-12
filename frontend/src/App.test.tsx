@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App from './App'
+import App from './LegacyApp'
 
 describe('App', () => {
   afterEach(() => vi.restoreAllMocks())
