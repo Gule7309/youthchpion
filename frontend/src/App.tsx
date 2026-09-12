@@ -29,6 +29,12 @@ const SOURCE_NAMES: Record<string, string> = {
   job104_research: '104／民間 AI 產業訊號',
 }
 
+const RESEARCH_QUERIES: Record<string, string> = {
+  '3': 'generative AI technicians associate professionals employment skills training policy',
+  '4': 'generative AI clerical occupations exposure employment skills training policy',
+  '5': 'generative AI service sales occupations employment skills training policy',
+}
+
 type Detail = '資料來源' | '計算方式' | '清洗紀錄' | '估算限制'
 
 function meter(value?: number) {
@@ -48,6 +54,11 @@ function firstEvidenceSelection(items: EvidenceItem[]) {
   const official = items.filter((item) => item.authority_tier === 'A').slice(0, 2)
   const live = items.find((item) => item.freshness === 'LIVE' && !official.includes(item))
   return [...official, ...(live ? [live] : [])].slice(0, 3).map((item) => item.evidence_id)
+}
+
+function researchQuery(signal: OccupationSignal) {
+  return RESEARCH_QUERIES[signal.code]
+    ?? `generative AI occupational exposure youth employment skills training policy ${signal.code}`
 }
 
 export default function App() {
@@ -124,7 +135,7 @@ export default function App() {
     setError('')
     try {
       const items = await searchEvidence(
-        `generative AI ${selected.name} youth employment skills training policy`,
+        researchQuery(selected),
       )
       setEvidence(items)
       setSelectedEvidence(firstEvidenceSelection(items))
@@ -146,7 +157,7 @@ export default function App() {
       const value = await verifyEvidence({
         analysis_run_id: dashboard.analysis_run_id,
         evidence_ids: selectedEvidence.slice(0, 3),
-        search_query: `generative AI ${selected.name} youth employment skills training policy`,
+        search_query: researchQuery(selected),
         question: `${selected.name}在生成式 AI 轉型下需要哪些青年就業政策？`,
       })
       setEvidence(value.searched_candidates)
