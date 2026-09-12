@@ -1,6 +1,13 @@
 name: Evidence Harness
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/evidence-harness.yml"
   pull_request:
     paths:
       - "backend/**"
