@@ -1,389 +1,52 @@
-import { useEffect, useMemo, useState } from 'react'
-import { generatePolicy, getDashboard, refreshDashboard, searchEvidence } from './api'
-import type {
-  Dashboard,
-  EvidenceItem,
-  OccupationSignal,
-  PolicyResponse,
-  SourceSnapshot,
-} from './types'
-
-const SOURCE_NAMES: Record<string, string> = {
-  dgbas_employment: '主計總處／就業結構',
-  ilo_genai_exposure: 'ILO／AI 職業暴露',
-  taiwanjobs: '台灣就業通／即時職缺',
-  job104_research: '104／民間產業訊號',
-}
+import { useRef, useState } from 'react'
+import { refreshDashboard } from './api'
+import { annualChange, pendingIndicators, snapshot } from './verifiedSnapshot'
+import './policyDashboard.css'
 
 const number = new Intl.NumberFormat('zh-TW')
-const percent = (value?: number) => (value == null ? '—' : `${(value * 100).toFixed(1)}%`)
-const time = (value: string) =>
-  new Intl.DateTimeFormat('zh-TW', { dateStyle: 'short', timeStyle: 'medium' }).format(
-    new Date(value),
-  )
-
-function StatusBadge({ value }: { value: string }) {
-  return <span className={`status status--${value.toLowerCase()}`}>{value}</span>
-}
-
-function MetricCard({ label, value, note, accent = false }: {
-  label: string
-  value: string
-  note: string
-  accent?: boolean
-}) {
-  return (
-    <article className={`panel metric-card ${accent ? 'panel--accent' : ''}`}>
-      <span className="eyebrow">{label}</span>
-      <strong className="metric-card__value">{value}</strong>
-      <small>{note}</small>
-    </article>
-  )
-}
-
-function IndicatorMatrix({ signals, selected, onSelect }: {
-  signals: OccupationSignal[]
-  selected: string
-  onSelect: (code: string) => void
-}) {
-  const width = 680
-  const height = 330
-  const padding = 44
-  const maxEmployment = Math.max(...signals.map((item) => item.youth_employment_share ?? 0), 0.01)
-  const maxExposure = Math.max(...signals.map((item) => item.exposure_score ?? 0), 0.01)
-  return (
-    <article className="panel matrix-panel">
-      <div className="panel__header">
-        <div>
-          <span className="eyebrow">01 / 指標雷達</span>
-          <h2>青年就業集中度 × AI 暴露</h2>
-        </div>
-        <div className="legend"><i />圓越大＝即時初階職缺越多</div>
-      </div>
-      <div className="chart-wrap">
-        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="青年就業與AI暴露矩陣">
-          <line x1={padding} x2={width - 20} y1={height - padding} y2={height - padding} />
-          <line x1={padding} x2={padding} y1={20} y2={height - padding} />
-          <line className="guide" x1={width / 2} x2={width / 2} y1={20} y2={height - padding} />
-          <line className="guide" x1={padding} x2={width - 20} y1={height / 2} y2={height / 2} />
-          <text x={padding} y={16}>AI 暴露分數 ↑</text>
-          <text x={width - 182} y={height - 12}>青年就業集中度 →</text>
-          {signals.map((item) => {
-            const x = padding + ((item.youth_employment_share ?? 0) / maxEmployment) * (width - padding - 42)
-            const y = height - padding - ((item.exposure_score ?? 0) / maxExposure) * (height - padding - 34)
-            const radius = 8 + Math.min(16, Math.sqrt(item.total_entry_jobs) / 2.4)
-            return (
-              <g
-                key={item.code}
-                className={`plot-point plot-point--${item.priority} ${selected === item.code ? 'is-selected' : ''}`}
-                onClick={() => onSelect(item.code)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => event.key === 'Enter' && onSelect(item.code)}
-              >
-                <circle cx={x} cy={y} r={radius} />
-                <text x={x + radius + 5} y={y + 4}>{item.code}</text>
-                <title>{`${item.name}｜就業占比 ${percent(item.youth_employment_share)}｜暴露 ${item.exposure_score}`}</title>
-              </g>
-            )
-          })}
-        </svg>
-      </div>
-      <div className="occupation-tabs">
-        {signals.map((item) => (
-          <button
-            className={selected === item.code ? 'active' : ''}
-            key={item.code}
-            onClick={() => onSelect(item.code)}
-          >
-            <b>{item.code}</b>{item.name}
-          </button>
-        ))}
-      </div>
-    </article>
-  )
-}
-
-function SourceCard({ source }: { source: SourceSnapshot }) {
-  return (
-    <a className="source-row" href={source.source_url} target="_blank" rel="noreferrer">
-      <div>
-        <span>{SOURCE_NAMES[source.source_id] ?? source.source_id}</span>
-        <small>{source.raw_rows.toLocaleString()} raw → {source.normalized_rows.toLocaleString()} clean</small>
-      </div>
-      <div className="source-row__status">
-        <StatusBadge value={source.status} />
-        <small>{time(source.retrieved_at)}</small>
-      </div>
-    </a>
-  )
-}
-
-function EvidencePanel({ items, selectedIds, onToggle, onSearch, searching }: {
-  items: EvidenceItem[]
-  selectedIds: string[]
-  onToggle: (id: string) => void
-  onSearch: () => void
-  searching: boolean
-}) {
-  return (
-    <article className="panel evidence-panel">
-      <div className="panel__header">
-        <div>
-          <span className="eyebrow">02 / 權威證據</span>
-          <h2>可追溯的研究與專家來源</h2>
-        </div>
-        <button className="button button--ghost" onClick={onSearch} disabled={searching}>
-          {searching ? '即時檢索中…' : '重新即時檢索'}
-        </button>
-      </div>
-      <div className="evidence-list">
-        {items.map((item) => (
-          <div className="evidence-row" key={item.evidence_id}>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(item.evidence_id)}
-                onChange={() => onToggle(item.evidence_id)}
-              />
-              <span />
-            </label>
-            <div>
-              <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a>
-              <p>
-                <b className={`tier tier--${(item.authority_tier ?? 'B').toLowerCase()}`}>
-                  {item.authority_tier ?? 'B'} 級
-                </b>
-                {item.institution} · {item.evidence_type} · {item.published_at ?? '日期未提供'}
-              </p>
-              <small>{item.limitations}</small>
-            </div>
-            <StatusBadge value={item.freshness} />
-          </div>
-        ))}
-        {!items.length && <p className="empty-copy">尚無證據，請執行即時檢索。</p>}
-      </div>
-    </article>
-  )
-}
-
-function PolicyPanel({ policy, loading, onGenerate, canGenerate }: {
-  policy: PolicyResponse | null
-  loading: boolean
-  onGenerate: () => void
-  canGenerate: boolean
-}) {
-  return (
-    <section className="policy-section">
-      <div className="section-heading">
-        <div>
-          <span className="eyebrow">03 / 政策收斂</span>
-          <h2>三個可比較的政策選項</h2>
-        </div>
-        <button className="button" onClick={onGenerate} disabled={!canGenerate || loading}>
-          {loading ? 'BEDROCK 推論中…' : '產生政策選項'}
-        </button>
-      </div>
-      {!policy && (
-        <div className="panel empty-policy">
-          選擇一個職業與至少一筆證據後，才會向 Bedrock 發出真實請求；未設定模型時不顯示假回答。
-        </div>
-      )}
-      {policy && (
-        <div className="policy-grid">
-          {policy.options.map((option, index) => (
-            <article className="panel policy-card" key={option.title}>
-              <span className="policy-card__index">0{index + 1}</span>
-              <h3>{option.title}</h3>
-              <p className="policy-card__target">{option.target_group}</p>
-              <p>{option.mechanism}</p>
-              <h4>執行</h4>
-              <ol>{option.implementation.map((step) => <li key={step}>{step}</li>)}</ol>
-              <h4>證據</h4>
-              <div className="citation-row">
-                {option.evidence_ids.map((id) => <code key={id}>{id}</code>)}
-              </div>
-              <details><summary>風險與限制</summary>{[...option.risks, ...option.limitations].map((item) => <p key={item}>{item}</p>)}</details>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-export default function App() {
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null)
-  const [selectedCode, setSelectedCode] = useState('4')
-  const [evidence, setEvidence] = useState<EvidenceItem[]>([])
-  const [selectedEvidence, setSelectedEvidence] = useState<string[]>([])
-  const [policy, setPolicy] = useState<PolicyResponse | null>(null)
-  const [busy, setBusy] = useState('')
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    getDashboard()
-      .then((value) => {
-        setDashboard(value)
-        setEvidence(value.evidence_preview)
-        setSelectedEvidence(value.evidence_preview.slice(0, 3).map((item) => item.evidence_id))
-        if (value.occupation_signals.length && !value.occupation_signals.some((item) => item.code === '4')) {
-          setSelectedCode(value.occupation_signals[0].code)
-        }
-      })
-      .catch(() => undefined)
-  }, [])
-
-  const selectedSignal = useMemo(
-    () => dashboard?.occupation_signals.find((item) => item.code === selectedCode),
-    [dashboard, selectedCode],
-  )
-
-  async function handleRefresh() {
-    setError('')
-    setBusy('QUEUED')
-    try {
-      const value = await refreshDashboard(setBusy)
-      setDashboard(value)
-      setEvidence(value.evidence_preview)
-      setSelectedEvidence(value.evidence_preview.slice(0, 3).map((item) => item.evidence_id))
-      setPolicy(null)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '更新失敗')
-    } finally {
-      setBusy('')
-    }
+const percentage = (a:number,b:number) => { const v=annualChange(a,b);return v==null?'—':`${v>0?'+':''}${(v*100).toFixed(2)}%` }
+type Detail = '資料來源'|'計算方式'|'清洗紀錄'|'估算方式'
+export default function App(){
+  const [code,setCode]=useState<string>('4')
+  const [detail,setDetail]=useState<Detail>('資料來源')
+  const [busy,setBusy]=useState(false)
+  const [notice,setNotice]=useState('')
+  const dialog=useRef<HTMLDialogElement>(null)
+  const trigger=useRef<HTMLButtonElement|null>(null)
+  const occupation=snapshot.occupations.find(o=>o.code===code)??snapshot.occupations[0]
+  function openDetail(kind:Detail,button:HTMLButtonElement){trigger.current=button;setDetail(kind);dialog.current?.showModal()}
+  function closeDetail(){dialog.current?.close();trigger.current?.focus()}
+  async function refresh(){
+    if(busy)return
+    setBusy(true);setNotice('正在請求既有資料管線；保留已核對版本。')
+    try{await refreshDashboard(()=>undefined);setNotice('既有後端已完成抓取，但回傳仍為舊 20–29 歲契約；新版尚未對齊，保留目前快照，未變更資料日期。')}
+    catch{setNotice('重新抓取未完成，請確認後端連線。已保留目前快照，數值與日期未變更。')}
+    finally{setBusy(false)}
   }
-
-  async function handleEvidenceSearch() {
-    setError('')
-    setBusy('EVIDENCE')
-    try {
-      const items = await searchEvidence('generative AI youth employment skills training policy')
-      setEvidence(items)
-      setSelectedEvidence(items.slice(0, 3).map((item) => item.evidence_id))
-      setPolicy(null)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '證據檢索失敗')
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handlePolicy() {
-    if (!dashboard || !selectedSignal) return
-    setError('')
-    setBusy('POLICY')
-    try {
-      setPolicy(await generatePolicy({
-        analysis_run_id: dashboard.analysis_run_id,
-        occupation_code: selectedSignal.code,
-        policy_goal: '降低青年在生成式 AI 轉型中的技能與優質就業落差',
-        evidence_ids: selectedEvidence,
-      }))
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '政策生成失敗')
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const metrics = dashboard?.summary_metrics
-  const opinion = dashboard?.public_opinion[0]
-  return (
-    <main>
-      <header className="topbar">
-        <a className="brand" href="#top"><span className="brand__mark">Y</span><span>YOUTH / AI<br />POLICY RADAR</span></a>
-        <div className="topbar__meta">
-          <span>ISSUE</span><b>青年就業 × AI 轉型</b>
-          <span>RUN</span><b>{dashboard?.analysis_run_id ?? 'NOT PUBLISHED'}</b>
-          <span>UPDATED</span><b>{dashboard ? time(dashboard.published_at) : '—'}</b>
-        </div>
-        <button className="button" onClick={handleRefresh} disabled={Boolean(busy)}>
-          {busy && busy !== 'EVIDENCE' && busy !== 'POLICY' ? `${busy}…` : '更新真實資料'}
-        </button>
-      </header>
-
-      {error && <div className="error-banner" role="alert"><b>流程未完成</b>{error}</div>}
-      {!dashboard ? (
-        <section className="first-run">
-          <span className="eyebrow">NO FIXTURE / NO PRETEND DATA</span>
-          <h1>先建立第一份<br />真實分析快照</h1>
-          <p>系統會即時查詢主計總處、ILO、台灣就業通、104、OpenAlex 與 Crossref。</p>
-          <button className="button button--large" onClick={handleRefresh} disabled={Boolean(busy)}>
-            {busy ? `${busy}…` : '開始更新'}
-          </button>
-        </section>
-      ) : (
-        <>
-          <section className="dashboard-grid" id="top">
-            <div className="metrics-stack">
-              <MetricCard
-                label="20–29 青年就業"
-                value={number.format(Number(metrics?.youth_employed_20_29 ?? 0))}
-                note="主計總處表 47 · 人"
-                accent
-              />
-              <MetricCard
-                label="青年 AI 暴露負荷"
-                value={Number(metrics?.youth_ai_exposure_load ?? 0).toFixed(3)}
-                note="就業集中度 × ILO 暴露分數"
-              />
-              <MetricCard
-                label="公眾感受"
-                value={`${String(opinion?.value ?? '—')}%`}
-                note="20–29 歲自評可能受取代 · 版本化調查"
-              />
-            </div>
-
-            <IndicatorMatrix signals={dashboard.occupation_signals} selected={selectedCode} onSelect={setSelectedCode} />
-
-            <aside className="right-stack">
-              <article className="panel selected-panel">
-                <span className="eyebrow">SELECTED / {selectedSignal?.code}</span>
-                <h2>{selectedSignal?.name}</h2>
-                <div className="selected-panel__metrics">
-                  <div><b>{percent(selectedSignal?.youth_employment_share)}</b><span>青年就業占比</span></div>
-                  <div><b>{selectedSignal?.exposure_score?.toFixed(3) ?? '—'}</b><span>ILO 暴露分數</span></div>
-                  <div><b>{percent(selectedSignal?.ai_entry_opportunity_rate)}</b><span>AI 初階機會</span></div>
-                </div>
-                <p>暴露分數代表職務轉型可能性，不等於失業或被取代機率。</p>
-              </article>
-              <article className="panel sources-panel">
-                <div className="panel__header"><div><span className="eyebrow">LIVE SOURCES</span><h2>資料新鮮度</h2></div><StatusBadge value={dashboard.overall_status} /></div>
-                {dashboard.sources.map((source) => <SourceCard key={source.source_id} source={source} />)}
-              </article>
-            </aside>
-
-            <article className="panel cleaning-panel">
-              <div className="panel__header"><div><span className="eyebrow">CLEANING AUDIT</span><h2>清洗前 → 清洗後</h2></div><code>{dashboard.cleaning_summary.transform_version}</code></div>
-              <div className="cleaning-stats">
-                <div><b>{number.format(dashboard.cleaning_summary.raw_rows)}</b><span>RAW ROWS</span></div>
-                <span>→</span>
-                <div><b>{number.format(dashboard.cleaning_summary.normalized_rows)}</b><span>NORMALIZED</span></div>
-                <div><b>{percent(dashboard.cleaning_summary.crosswalk_coverage)}</b><span>JOIN COVERAGE</span></div>
-                <div><b>{dashboard.cleaning_summary.expired_removed}</b><span>EXPIRED REMOVED</span></div>
-              </div>
-              <details>
-                <summary>檢視未對齊類別與轉換規則</summary>
-                <p>{dashboard.cleaning_summary.unmatched_categories.join('、') || '本次無未對齊類別'}</p>
-                {dashboard.cleaning_summary.before_after.map((item) => <p key={item.before}><code>{item.before}</code> → {item.after}</p>)}
-              </details>
-            </article>
-          </section>
-
-          <EvidencePanel
-            items={evidence}
-            selectedIds={selectedEvidence}
-            onToggle={(id) => setSelectedEvidence((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id].slice(-8))}
-            onSearch={handleEvidenceSearch}
-            searching={busy === 'EVIDENCE'}
-          />
-
-          <PolicyPanel policy={policy} loading={busy === 'POLICY'} onGenerate={handlePolicy} canGenerate={selectedEvidence.length > 0} />
-        </>
-      )}
-      <footer>YOUTHCHPION / DECISION SUPPORT PROTOTYPE · ALL METRICS TRACEABLE TO SOURCE SNAPSHOTS</footer>
-    </main>
-  )
+  return <main className="policy-dashboard" id="overview">
+    <header className="topbar"><a href="#overview" className="brand"><span className="brand__mark">Y</span>青年 AI 就業風險</a><div className="policy-meta"><span>分析期間 <b>2024–2025</b></span><span>來源核對 <b>{snapshot.checkedAt}</b></span><span>最後更新 <b>未接入新版發布時間</b></span></div><button className="button" disabled={busy} onClick={refresh}>{busy?'抓取中…':'重新抓取資料'}</button></header>
+    {notice&&<p className="policy-notice" role="status">{notice}</p>}
+    <div className="policy-workspace">
+      <aside className="panel policy-indicators" aria-label="目前職業核心指標"><span className="eyebrow">01 / 核心指標</span><h2>{occupation.name}</h2><div className="policy-risk"><span>AI 就業風險 Risk</span><strong>—<small> / 100</small></strong><span>資料不足，暫不評分</span></div>
+        {[['S','結構性 AI 暴露'],['A','青年集中程度'],['B','AI 能力暴露'],['C','台灣 AI 導入訊號'],['H','招募弱化'],['D','AI 人才需求']].map(([id,label])=><div className="policy-metric" key={id}><span><b>{id}</b> {label}</span><strong>—</strong><div className="policy-meter"/><small>{id==='H'?'歷史已取得 · 方法待核定':'待核對'}</small></div>)}
+        <button className="policy-text-button" onClick={e=>openDetail('計算方式',e.currentTarget)}>查看計算方式 ↗</button>
+      </aside>
+      <section className="panel policy-comparison" aria-labelledby="comparison-title"><div className="panel__header"><div><span className="eyebrow">02 / 職業比較</span><h2 id="comparison-title">哪些職業值得優先關注？</h2></div><span className="status">3 個職業</span></div><p className="policy-muted">Risk 尚未核定，暫不排名；先比較已核對的招募訊號。</p><div className="policy-table-head"><span>職業</span><span>Risk</span><span>求才年變化</span></div>
+        <div role="group" aria-label="選擇職業">{snapshot.occupations.map(o=><button className="policy-occupation" aria-pressed={code===o.code} key={o.code} onClick={()=>setCode(o.code)}><span><small>職業大類 {o.code}</small><b>{o.name}</b></span><span>—<small>待核對</small></span><strong>{percentage(o.previous,o.current)}</strong></button>)}</div>
+        <div className="policy-trend"><h3>{occupation.name}的招募訊號</h3><p>整體新登記求才人次 · 2024 → 2025</p>{[{year:2024,value:occupation.previous},{year:2025,value:occupation.current}].map(row=><div className="policy-bar" key={row.year}><span>{row.year}</span><div><i style={{width:`${row.value/407329*100}%`}}/></div><b>{number.format(row.value)} 人次</b></div>)}<small>同一尺度、從零起算。全年齡求才，不是青年新人招募或 AI 因果效果。</small></div>
+      </section>
+      <aside className="panel policy-diagnosis"><span className="eyebrow">03 / 職業診斷</span><h2>{occupation.name}</h2><span className="policy-diagnostic-label">證據不足</span><p>目前可觀察到招募年變化 {percentage(occupation.previous,occupation.current)}，但尚不足以歸因於 AI。</p><h3>判讀重點</h3><ul><li>A／B／C 尚待核對，無完整 S 與 Risk。</li><li>D 需求占比及排名尚未建立。</li><li>求才上升不代表低風險；下降不代表被取代。</li></ul><details><summary>診斷類型說明</summary><p>核定後可區分自動化壓力、AI 增強機會、技能錯配／轉型、非 AI 招募弱化、持續觀察。證據不足不歸入任何風險類型。</p></details><div className="policy-detail-links">{(['資料來源','清洗紀錄','估算方式'] as Detail[]).map(kind=><button className="policy-text-button" key={kind} onClick={e=>openDetail(kind,e.currentTarget)}>查看{kind} ↗</button>)}</div></aside>
+    </div>
+    <div className="policy-bottom">
+      <section className="panel" aria-labelledby="research-title"><span className="eyebrow">04 / 研究證據</span><h2 id="research-title">{occupation.name}的研究依據</h2><div className="policy-evidence"><b>ILO · 職業 AI 暴露研究</b><span>模型方法來源</span><p>用於核對 B 的國際代理指標；不直接作為台灣該職業失業或政策成效的證明。</p><a href={pendingIndicators[1].source} target="_blank" rel="noreferrer">查看原文 ↗</a></div><div className="policy-evidence"><b>AIF · 台灣產業 AI 調查</b><span>產業背景來源</span><p>Ready AI 包含準備與試驗；須經產業 → 職業加權映射，不能直接當成職業實際導入率。</p><a href={pendingIndicators[2].source} target="_blank" rel="noreferrer">查看原文 ↗</a></div><small>以上為方法／背景來源。職業專屬的支持、反對證據與政策研究原文定位仍待補齊，不冒充專家背書。</small></section>
+      <section className="panel" aria-labelledby="policy-title"><div className="panel__header"><div><span className="eyebrow">05 / 政策建議</span><h2 id="policy-title">{occupation.name}的政策方向</h2></div><span className="status">待研究核對</span></div><h3>先確認問題，再選擇介入方式</h3><p>現有招募趨勢不足以支持特定政策。需確認青年／初階職缺是否有相同變化，以及景氣、產業結構等其他解釋。</p><div className="policy-report-outline"><span>完整政策報告將包含</span><ol><li>職業風險與指標診斷</li><li>國際研究與適用限制</li><li>政策選項、執行措施與 KPI</li></ol></div><button className="button" disabled aria-describedby="report-reason">產生完整政策報告</button><p id="report-reason" className="policy-muted">新版模型、政策證據及報告 API 尚未就緒，暫不產生報告。</p></section>
+    </div>
+    <dialog ref={dialog} className="review-dialog" aria-labelledby="detail-title" onCancel={e=>{e.preventDefault();closeDetail()}} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDetail()}}}><button className="button" autoFocus onClick={closeDetail}>關閉詳情</button><h2 id="detail-title">{occupation.name} · {detail}</h2>
+      {detail==='資料來源'&&<><p>勞動部「就業服務之求才及求才僱用人數按職業分」。API / JSON；統計期民國 113、114 年，欄位為新登記求才人數（人次）。</p><p>原始值：{number.format(occupation.previous)} → {number.format(occupation.current)} 人次。</p><a href={snapshot.source} target="_blank" rel="noreferrer">資料集說明 ↗</a><p><a href={snapshot.rawUrl} target="_blank" rel="noreferrer">原始 JSON ↗</a></p><p>核對日期 {snapshot.checkedAt}；抓取精確時間、發布時間與 SHA-256：本快照未保存，不能補造。</p><code>{snapshot.id}</code></>}
+      {detail==='計算方式'&&<><p>年度變化 =（2025 − 2024）÷ 2024 = {percentage(occupation.previous,occupation.current)}。零基期或缺值不計算。</p><p>團隊候選模型：S = (A × B × C)^(1/3)；Risk = 100 × (S + H) / 2。D 獨立呈現。H = clip(−年度變化 / 0.20, 0, 1)，尚待核定。</p><p>AI 不可任意改寫公式。模型不是失業機率；缺少必要指標不補零、不計分。</p></>}
+      {detail==='清洗紀錄'&&<><ol><li>由官方 JSON 選取 113、114 年及對應職業。</li><li>將求才人次轉成數值；確認兩年職業名稱與單位相同。</li><li>計算年度變化率，顯示至小數點後兩位。</li></ol><p>目前為已核對本地快照，不是即時清洗日誌。新版管線的步驟、筆數、SHA-256 與 crosswalk 稽核仍待 API 提供。</p></>}
+      {detail==='估算方式'&&<>{pendingIndicators.map(m=><section key={m.id}><h3>{m.id} · {m.name}</h3><p>{m.reason}</p><a href={m.source} target="_blank" rel="noreferrer">來源 ↗</a></section>)}<p>C 需以職業在各產業的就業權重轉換；產業不是主比較維度。估算／proxy、覆蓋率、信心須由核定資料提供，目前均未定。</p></>}
+    </dialog>
+    <footer>青年就業風險 → 指標原因 → 研究證據 → 政策建議 · 來源與方法可追溯</footer>
+  </main>
 }
