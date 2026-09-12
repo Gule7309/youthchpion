@@ -1,0 +1,24 @@
+name: Evidence Harness
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/evidence-harness.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile
+        run: python -m compileall -q backend/app/evidence_harness backend/deployment
+      - name: Unit tests
+        working-directory: backend
+        run: python -m unittest discover -s tests -v
