@@ -21,8 +21,22 @@ def test_dashboard_calculates_youth_share_from_youth_total() -> None:
         "dgbas_employment": AdapterResult(
             snapshot("dgbas_employment", 2),
             [
-                {"code": "2", "name": "專業", "youth_employed": 30, "total_employed": 100},
-                {"code": "4", "name": "事務", "youth_employed": 70, "total_employed": 200},
+                {
+                    "code": "2",
+                    "name": "專業",
+                    "youth_employed": 30,
+                    "youth_employed_20_24": 30,
+                    "youth_employed_25_29": 40,
+                    "total_employed": 100,
+                },
+                {
+                    "code": "4",
+                    "name": "事務",
+                    "youth_employed": 70,
+                    "youth_employed_20_24": 70,
+                    "youth_employed_25_29": 60,
+                    "total_employed": 200,
+                },
             ],
         ),
         "ilo_genai_exposure": AdapterResult(
@@ -60,4 +74,6 @@ def test_dashboard_calculates_youth_share_from_youth_total() -> None:
     assert clerical.youth_employment_share == 0.7
     assert professional.ai_entry_opportunity_rate == 1.0
     assert clerical.ai_entry_opportunity_rate == 0.0
+    assert dashboard.summary_metrics["youth_employed_20_24"] == 100
+    assert dashboard.summary_metrics["youth_employed_25_29"] == 100
     assert dashboard.cleaning_summary.crosswalk_coverage == 1.0

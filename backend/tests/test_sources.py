@@ -24,7 +24,10 @@ def test_dgbas_parser_extracts_20_to_29_and_converts_thousands() -> None:
     records = parse_dgbas_workbook(body.getvalue())
 
     assert len(records) == 7
-    assert records[0]["youth_employed"] == 7000
+    assert records[0]["youth_employed"] == 3000
+    assert records[0]["youth_employed_20_24"] == 3000
+    assert records[0]["youth_employed_25_29"] == 4000
+    assert records[0]["youth_employed_20_29"] == 7000
     assert records[0]["total_employed"] == 100000
 
 

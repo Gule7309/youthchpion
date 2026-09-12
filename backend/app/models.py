@@ -40,6 +40,11 @@ class SourceSnapshot(BaseModel):
     dataset_name: str | None = None
     reference_url: str | None = None
     processing_steps: list[str] = Field(default_factory=list)
+    fields_used: list[str] = Field(default_factory=list)
+    why_used: str | None = None
+    limitations: str | None = None
+    input_count_label: str = "records received"
+    output_count_label: str = "records prepared"
     retrieved_at: datetime
     source_published_at: datetime | None = None
     http_status: int | None = None
@@ -52,14 +57,12 @@ class SourceSnapshot(BaseModel):
 
 
 class CleaningAudit(BaseModel):
-    raw_rows: int = 0
-    normalized_rows: int = 0
     duplicates_removed: int = 0
     expired_removed: int = 0
     missing_occupation: int = 0
     crosswalk_coverage: float | None = None
     unmatched_categories: list[str] = Field(default_factory=list)
-    transform_version: str = "2026-09-12.1"
+    transform_version: str = "2026-09-12.2"
     before_after: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -67,6 +70,7 @@ class OccupationSignal(BaseModel):
     code: str
     name: str
     youth_employed: int | None = None
+    youth_employed_25_29: int | None = None
     youth_employment_share: float | None = None
     exposure_level: str
     exposure_score: float | None = None

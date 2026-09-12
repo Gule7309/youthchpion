@@ -6,6 +6,11 @@ export interface SourceSnapshot {
   source_url: string
   dataset_name?: string
   reference_url?: string
+  fields_used?: string[]
+  why_used?: string
+  limitations?: string
+  input_count_label?: string
+  output_count_label?: string
   processing_steps?: string[]
   retrieved_at: string
   source_published_at?: string
@@ -20,6 +25,7 @@ export interface OccupationSignal {
   code: string
   name: string
   youth_employed?: number
+  youth_employed_25_29?: number
   youth_employment_share?: number
   exposure_level: string
   exposure_score?: number
@@ -47,8 +53,6 @@ export interface EvidenceItem {
 }
 
 export interface CleaningAudit {
-  raw_rows: number
-  normalized_rows: number
   duplicates_removed: number
   expired_removed: number
   missing_occupation: number

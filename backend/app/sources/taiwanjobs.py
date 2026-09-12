@@ -9,10 +9,7 @@ from app.models import FreshnessStatus, SourceSnapshot, utc_now
 from app.sources.base import AdapterResult
 
 TAIWANJOBS_URL = "https://free.taiwanjobs.gov.tw/webservice_taipei/Webservice.ashx"
-TAIWANJOBS_REFERENCE_URL = (
-    "https://free.taiwanjobs.gov.tw/webservice_taipei/"
-    "A17000000J-030144-Taiwanjobs-OpenData.pdf"
-)
+TAIWANJOBS_REFERENCE_URL = "https://free.taiwanjobs.gov.tw/"
 AI_PATTERN = re.compile(
     r"(?i)(人工智慧|生成式\s*AI|機器學習|深度學習|LLM|AI\s*工具|Python|資料科學|prompt)"
 )
@@ -126,6 +123,22 @@ class TaiwanJobsAdapter:
                 "依經驗條件辨識初階職缺，依公開規則辨識 AI 技能關鍵字",
                 "將台灣就業通職類對齊七個職業大類；未對齊類別保留在 audit",
             ],
+            fields_used=[
+                "OCCU_DESC／CJOB_NAME1／JOB_DETAIL：職稱、職類與技能關鍵字",
+                "EXPERIENCE／JOB_PERSON：初階條件與徵才人數",
+                "STOP_DATE／URL_QUERY：過期檢查與去重識別",
+                "CITYNAME／TRANDATE：地區與更新時間脈絡",
+            ],
+            why_used=(
+                "補足官方年度統計的時間落差，"
+                "以當期初階職缺和 AI 技能文字觀察青年面對的需求訊號。"
+            ),
+            limitations=(
+                "僅代表本次 API 回傳的前 1,000 筆；"
+                "AI 關鍵字與職類 crosswalk 是透明規則，不等於全市場。"
+            ),
+            input_count_label="筆 API 職缺",
+            output_count_label="筆有效職缺",
             retrieved_at=utc_now(),
             http_status=payload.status_code,
             content_type=payload.content_type,

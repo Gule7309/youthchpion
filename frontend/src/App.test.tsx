@@ -34,6 +34,11 @@ describe('App', () => {
           source_url: 'https://example.com/raw.xlsx',
           dataset_name: '主計總處表 47',
           reference_url: 'https://example.com/about',
+          fields_used: ['欄 O：20–24 歲就業人數', '欄 Q：25–29 歲就業人數'],
+          why_used: '建立主分析族群與比較組。',
+          limitations: '職業大類資料不能解讀為失業人數。',
+          input_count_label: '個選定職業列',
+          output_count_label: '個 20–24 歲職業指標',
           processing_steps: ['擷取 20–24 與 25–29 歲'],
           retrieved_at: '2026-09-12T07:00:00Z',
           http_status: 200,
@@ -41,11 +46,17 @@ describe('App', () => {
           raw_rows: 7,
           normalized_rows: 7,
         }],
-        summary_metrics: { youth_employed_20_29: 10, youth_ai_exposure_load: 0.1 },
+        summary_metrics: {
+          youth_employed_20_24: 10,
+          youth_employed_25_29: 12,
+          youth_employed_20_29: 22,
+          youth_ai_exposure_load: 0.1,
+        },
         occupation_signals: [{
           code: '4',
           name: '事務支援人員',
           youth_employed: 10,
+          youth_employed_25_29: 12,
           youth_employment_share: 1,
           exposure_level: 'gradient',
           exposure_score: 0.5,
@@ -58,8 +69,6 @@ describe('App', () => {
         public_opinion: [{ value: 39.5 }],
         industry_context: [],
         cleaning_summary: {
-          raw_rows: 7,
-          normalized_rows: 7,
           duplicates_removed: 0,
           expired_removed: 0,
           missing_occupation: 0,
@@ -74,16 +83,19 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(await screen.findByText('主計總處／就業結構')).toBeInTheDocument()
+    expect((await screen.findAllByText('主計總處／就業結構')).length).toBeGreaterThan(0)
     expect(screen.getByText(/本次仍有重新連線並下載/)).toBeInTheDocument()
     expect(screen.getByText('擷取 20–24 與 25–29 歲')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '官方說明' })).toHaveAttribute(
+    expect(screen.getByText('20–24 青年就業')).toBeInTheDocument()
+    expect(screen.getByText('實際使用欄位')).toBeInTheDocument()
+    expect(screen.getByText('建立主分析族群與比較組。')).toBeInTheDocument()
+    expect(screen.getByText('職業大類資料不能解讀為失業人數。')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '查看官方來源' })).toHaveAttribute(
       'href',
       'https://example.com/about',
     )
-    expect(screen.getByRole('link', { name: '機器原始資料' })).toHaveAttribute(
-      'href',
-      'https://example.com/raw.xlsx',
-    )
+    expect(screen.queryByRole('link', { name: '機器原始資料' })).not.toBeInTheDocument()
+    expect(screen.getAllByText('7 個選定職業列').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('7 個 20–24 歲職業指標').length).toBeGreaterThan(0)
   })
 })

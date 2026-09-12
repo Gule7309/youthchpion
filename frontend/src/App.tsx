@@ -56,7 +56,7 @@ function IndicatorMatrix({ signals, selected, onSelect }: {
       <div className="panel__header">
         <div>
           <span className="eyebrow">01 / 指標雷達</span>
-          <h2>青年就業集中度 × AI 暴露</h2>
+          <h2>20–24 歲青年就業集中度 × AI 暴露</h2>
         </div>
         <div className="legend"><i />圓越大＝即時初階職缺越多</div>
       </div>
@@ -67,7 +67,7 @@ function IndicatorMatrix({ signals, selected, onSelect }: {
           <line className="guide" x1={width / 2} x2={width / 2} y1={20} y2={height - padding} />
           <line className="guide" x1={padding} x2={width - 20} y1={height / 2} y2={height / 2} />
           <text x={padding} y={16}>AI 暴露分數 ↑</text>
-          <text x={width - 182} y={height - 12}>青年就業集中度 →</text>
+          <text x={width - 208} y={height - 12}>20–24 歲就業集中度 →</text>
           {signals.map((item) => {
             const x = padding + ((item.youth_employment_share ?? 0) / maxEmployment) * (width - padding - 42)
             const y = height - padding - ((item.exposure_score ?? 0) / maxExposure) * (height - padding - 34)
@@ -110,7 +110,10 @@ function SourceCard({ source }: { source: SourceSnapshot }) {
       <summary>
         <div>
           <span>{SOURCE_NAMES[source.source_id] ?? source.source_id}</span>
-          <small>{source.raw_rows.toLocaleString()} raw → {source.normalized_rows.toLocaleString()} clean</small>
+          <small>
+            {source.raw_rows.toLocaleString()} {source.input_count_label ?? '筆輸入'} →{' '}
+            {source.normalized_rows.toLocaleString()} {source.output_count_label ?? '筆輸出'}
+          </small>
         </div>
         <div className="source-row__status">
           <StatusBadge value={source.status} />
@@ -119,17 +122,34 @@ function SourceCard({ source }: { source: SourceSnapshot }) {
       </summary>
       <div className="source-detail">
         <strong>{source.dataset_name ?? '來源資料集'}</strong>
+        {Boolean(source.fields_used?.length) && (
+          <section>
+            <h3>實際使用欄位</h3>
+            <p>{source.fields_used?.join('、')}</p>
+          </section>
+        )}
+        {source.why_used && (
+          <section>
+            <h3>為什麼使用</h3>
+            <p>{source.why_used}</p>
+          </section>
+        )}
         <ol>
           {(source.processing_steps ?? []).map((step) => <li key={step}>{step}</li>)}
         </ol>
+        {source.limitations && (
+          <section>
+            <h3>資料限制</h3>
+            <p>{source.limitations}</p>
+          </section>
+        )}
         {source.message && <p>{source.message}</p>}
         <dl>
           <div><dt>HTTP</dt><dd>{source.http_status ?? '—'}</dd></div>
           <div><dt>SHA-256</dt><dd>{source.content_sha256?.slice(0, 16) ?? '—'}…</dd></div>
         </dl>
         <div className="source-detail__links">
-          {source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">官方說明</a>}
-          <a href={source.source_url} target="_blank" rel="noreferrer">機器原始資料</a>
+          {source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">查看官方來源</a>}
         </div>
       </div>
     </details>
@@ -336,9 +356,9 @@ export default function App() {
           <section className="dashboard-grid" id="top">
             <div className="metrics-stack">
               <MetricCard
-                label="20–29 青年就業"
-                value={number.format(Number(metrics?.youth_employed_20_29 ?? 0))}
-                note="主計總處表 47 · 人"
+                label="20–24 青年就業"
+                value={number.format(Number(metrics?.youth_employed_20_24 ?? 0))}
+                note={`主分析族群 · 25–29 歲另列 ${number.format(Number(metrics?.youth_employed_25_29 ?? 0))} 人`}
                 accent
               />
               <MetricCard
@@ -360,14 +380,17 @@ export default function App() {
                 <span className="eyebrow">SELECTED / {selectedSignal?.code}</span>
                 <h2>{selectedSignal?.name}</h2>
                 <div className="selected-panel__metrics">
-                  <div><b>{percent(selectedSignal?.youth_employment_share)}</b><span>青年就業占比</span></div>
+                  <div><b>{percent(selectedSignal?.youth_employment_share)}</b><span>20–24 職業分布占比</span></div>
                   <div><b>{selectedSignal?.exposure_score?.toFixed(3) ?? '—'}</b><span>ILO 暴露分數</span></div>
                   <div><b>{percent(selectedSignal?.ai_entry_opportunity_rate)}</b><span>AI 初階機會</span></div>
                 </div>
-                <p>暴露分數代表職務轉型可能性，不等於失業或被取代機率。</p>
+                <p>
+                  20–24 歲就業 {number.format(selectedSignal?.youth_employed ?? 0)} 人；25–29 歲比較組{' '}
+                  {number.format(selectedSignal?.youth_employed_25_29 ?? 0)} 人。暴露分數代表職務轉型可能性，不等於失業或被取代機率。
+                </p>
               </article>
               <article className="panel sources-panel">
-                <div className="panel__header"><div><span className="eyebrow">LIVE SOURCES</span><h2>資料新鮮度</h2><small>點開來源查看清洗步驟</small></div><StatusBadge value={dashboard.overall_status} /></div>
+                <div className="panel__header"><div><span className="eyebrow">LIVE SOURCES</span><h2>資料新鮮度</h2><small>點開查看使用欄位、處理規則與限制</small></div><StatusBadge value={dashboard.overall_status} /></div>
                 {dashboard.sources.map((source) => <SourceCard key={source.source_id} source={source} />)}
                 <div className="freshness-help">
                   <p><StatusBadge value="LIVE" /> 本次重新查詢成功，內容相較上一版有變動，或是首次建立快照。</p>
@@ -377,19 +400,27 @@ export default function App() {
             </aside>
 
             <article className="panel cleaning-panel">
-              <div className="panel__header"><div><span className="eyebrow">CLEANING AUDIT</span><h2>清洗前 → 清洗後</h2></div><code>{dashboard.cleaning_summary.transform_version}</code></div>
-              <p className="cleaning-intro">每次更新都先保存原始檔，再解析欄位、統一年齡／單位／職類、去重與排除過期資料，通過 schema 與 join 品質檢查後才發布。</p>
-              <div className="cleaning-stats">
-                <div><b>{number.format(dashboard.cleaning_summary.raw_rows)}</b><span>RAW ROWS</span></div>
-                <span>→</span>
-                <div><b>{number.format(dashboard.cleaning_summary.normalized_rows)}</b><span>NORMALIZED</span></div>
-                <div><b>{percent(dashboard.cleaning_summary.crosswalk_coverage)}</b><span>JOIN COVERAGE</span></div>
-                <div><b>{dashboard.cleaning_summary.expired_removed}</b><span>EXPIRED REMOVED</span></div>
+              <div className="panel__header"><div><span className="eyebrow">CLEANING AUDIT</span><h2>本次實際處理紀錄</h2></div><code>{dashboard.cleaning_summary.transform_version}</code></div>
+              <p className="cleaning-intro">每次更新都重新擷取來源，再解析欄位、切分 20–24 歲、統一職類、去重與排除過期資料。不同來源的觀測單位不同，因此分來源呈現輸入與輸出，不把「列、職業觀測、職缺、文章」加成一個誤導性的總數。</p>
+              <div className="processing-ledger">
+                {dashboard.sources.map((source) => (
+                  <div className="processing-row" key={source.source_id}>
+                    <b>{SOURCE_NAMES[source.source_id] ?? source.source_id}</b>
+                    <span>{number.format(source.raw_rows)} {source.input_count_label ?? '筆輸入'}</span>
+                    <i>→</i>
+                    <span>{number.format(source.normalized_rows)} {source.output_count_label ?? '筆輸出'}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="quality-stats">
+                <div><b>{percent(dashboard.cleaning_summary.crosswalk_coverage)}</b><span>職類 JOIN 覆蓋率</span></div>
+                <div><b>{dashboard.cleaning_summary.duplicates_removed}</b><span>移除重複職缺</span></div>
+                <div><b>{dashboard.cleaning_summary.expired_removed}</b><span>排除過期職缺</span></div>
+                <div><b>{dashboard.cleaning_summary.missing_occupation}</b><span>缺少職稱</span></div>
               </div>
               <div className="cleaning-removals">
-                <span>去重 {dashboard.cleaning_summary.duplicates_removed} 筆</span>
-                <span>缺職稱 {dashboard.cleaning_summary.missing_occupation} 筆</span>
                 <span>轉換規則版本 {dashboard.cleaning_summary.transform_version}</span>
+                <span>主分析 20–24 歲；25–29 歲僅作比較</span>
               </div>
               <details>
                 <summary>檢視未對齊類別與轉換規則</summary>

@@ -66,6 +66,18 @@ class IloAdapter:
                 "將細職業分數彙整為九個職業大類",
                 "保留暴露梯度文字；暴露不解讀為失業機率",
             ],
+            fields_used=[
+                "Major groups：ISCO 職業大類",
+                "Average score：任務可被 GenAI 影響的平均分數",
+                "mean_exposure_level：ILO 暴露梯度",
+            ],
+            why_used=(
+                "補上官方就業統計沒有的職務 AI 暴露維度，"
+                "用來比較哪些青年集中職業更需要轉型準備。"
+            ),
+            limitations="全球職業暴露研究不是台灣失業預測；實際影響仍取決於企業導入與職務設計。",
+            input_count_label="個細職業觀測",
+            output_count_label="個職業大類",
             retrieved_at=utc_now(),
             source_published_at=None,
             http_status=payload.status_code,

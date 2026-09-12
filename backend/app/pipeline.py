@@ -89,7 +89,8 @@ def build_dashboard(
             if job["ai_related"]:
                 grouped_jobs[code]["ai"] += headcount
 
-    youth_total = sum(int(record["youth_employed"]) for record in dgbas.records)
+    youth_total = sum(int(record["youth_employed_20_24"]) for record in dgbas.records)
+    youth_total_25_29 = sum(int(record["youth_employed_25_29"]) for record in dgbas.records)
     intermediate: list[dict[str, Any]] = []
     for record in dgbas.records:
         code = str(record["code"])
@@ -142,6 +143,7 @@ def build_dashboard(
                 code=row["code"],
                 name=row["name"],
                 youth_employed=row["youth_employed"],
+                youth_employed_25_29=row["youth_employed_25_29"],
                 youth_employment_share=round(row["youth_employment_share"], 4),
                 exposure_level=row["exposure_level"],
                 exposure_score=row["exposure_score"],
@@ -162,8 +164,6 @@ def build_dashboard(
         1 for job in jobs.records if job["entry_level"]
     ) if jobs else 0
     cleaning = CleaningAudit(
-        raw_rows=sum(snapshot.raw_rows for snapshot in source_snapshots),
-        normalized_rows=sum(snapshot.normalized_rows for snapshot in source_snapshots),
         duplicates_removed=audit.get("duplicates_removed", 0),
         expired_removed=audit.get("expired_removed", 0),
         missing_occupation=audit.get("missing_occupation", 0),
@@ -173,7 +173,7 @@ def build_dashboard(
         unmatched_categories=audit.get("unmatched_categories", []),
         before_after=[
             {"before": "DGBAS value (thousand people)", "after": "integer person count"},
-            {"before": "DGBAS all published age columns", "after": "20–24 + 25–29"},
+            {"before": "DGBAS all published age columns", "after": "20–24 primary; 25–29 context"},
             {"before": "ILO detailed occupations", "after": "ISCO major-group averages"},
             {"before": "TaiwanJobs non-standard XML", "after": "parseable normalized fields"},
             {"before": "TaiwanJobs proprietary category", "after": "versioned occupation group"},
@@ -187,7 +187,9 @@ def build_dashboard(
         overall_status=FreshnessStatus.STALE if partial else FreshnessStatus.LIVE,
         sources=source_snapshots,
         summary_metrics={
-            "youth_employed_20_29": youth_total,
+            "youth_employed_20_24": youth_total,
+            "youth_employed_25_29": youth_total_25_29,
+            "youth_employed_20_29": youth_total + youth_total_25_29,
             "youth_ai_exposure_load": round(sum(row["load"] for row in intermediate), 4),
             "live_entry_jobs": sum(row["total_entry_jobs"] for row in intermediate),
             "high_priority_occupations": sum(signal.priority == "high" for signal in signals),
@@ -195,7 +197,10 @@ def build_dashboard(
                 "load_p67": round(load_high, 4),
                 "opportunity_p67": round(opportunity_high, 4),
             },
-            "metric_warning": "暴露負荷為比較指數，不是被取代人數或機率。",
+            "metric_warning": (
+                "暴露負荷以 20–24 歲職業分布計算，只是優先排序訊號，"
+                "不是被取代人數、失業率或因果機率。"
+            ),
         },
         occupation_signals=signals,
         public_opinion=PUBLIC_OPINION,
