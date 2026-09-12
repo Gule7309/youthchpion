@@ -14,13 +14,20 @@ Updated: 2026-09-12
 - Section 05 remains locked until verified evidence is available. The policy API also enforces this on the server and sends Bedrock the approved claim and exact excerpt rather than an unverified index summary.
 - Scheduled refresh infrastructure is present in the AWS template.
 
-## Must verify before the live demo
+## Verified on the deployed AWS demo
 
-- Deploy the current local build to AWS.
-- Run one end-to-end Bedrock verification and confirm at least one exact passage is approved.
-- Generate exactly three distinct policy options from the approved evidence.
-- Check the evidence, source, cleaning, and formula dialogs in the deployed browser.
-- Trigger a post-deploy live refresh and confirm `/ready` is healthy.
+- Deployed the current Lambda bundle to stack `youthchpion-demo` in `us-west-2`; `/health` and `/ready` are healthy.
+- Cloud refresh `run_b1e4c2c65fe4` succeeded: DGBAS 7→7, ILO 426→9, TaiwanJobs 1,000→998, and 104 5→3.
+- The Agent searched eight candidates, including three LIVE index results, and approved one exact ILO passage (`HTML block 4`).
+- The Agent returned `PARTIAL` because the OECD and one LIVE DOI landing page returned HTTP errors; neither was published as evidence.
+- Nova Lite generated exactly three distinct policy options with `is_fixture=false`, using only the approved evidence ID.
+- The deployed browser displayed all five sections and three policy cards with zero console errors or warnings.
+
+## Recheck after the teammate's next frontend update
+
+- Preserve the API calls and truth states when applying visual changes; do not restore `verifiedSnapshot.ts` as runtime data.
+- Re-run the section 04 → section 05 browser flow and inspect source, cleaning, formula, and limitation dialogs.
+- Re-run production build and frontend tests.
 
 ## Honest data limitations
 

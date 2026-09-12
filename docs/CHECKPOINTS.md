@@ -2,14 +2,14 @@
 
 ## Evidence Agent integration checkpoint — 2026-09-12
 
-Status: READY FOR LIVE BEDROCK VERIFICATION
+Status: PASS
 
 - Integrated PR #1's evidence contracts, source policy, publication gate, and Bedrock provider.
 - Replaced the static screenshot dashboard runtime with real dashboard, refresh, evidence-search, evidence-verification, and policy APIs.
 - Added original-page paragraph extraction so Bedrock can select evidence but cannot invent the quoted source text.
 - Added server-side enforcement that policy generation can use only the approved claim and exact excerpt from the same analysis run; search summaries are provenance only.
 - Added an explicit transformation-priority formula and kept unsupported Taiwan adoption data out of the numeric score.
-- Verified live ingestion and live OpenAlex/Crossref search locally; the remaining release gate is an AWS-backed Bedrock run after valid session credentials are available.
+- Deployed to AWS and verified refresh `run_b1e4c2c65fe4`, live OpenAlex/Crossref discovery, one publication-gated ILO claim, and three non-fixture Nova Lite policy options in the browser with zero console errors or warnings.
 
 See `docs/DEMO_GAP_STATUS.md` for the full readiness and limitation list.
 
