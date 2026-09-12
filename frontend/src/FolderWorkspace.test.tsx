@@ -19,7 +19,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); window.history.replaceState(null, '', '/') })
 
 describe('五頁檔案夾工作區', () => {
-  it('閱讀高度扣除標題與底欄，短視窗改文件捲動且放大後可恢復', () => {
+  it('所有視窗均使用整頁捲動，調整高度不再切回卡片內捲', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const top = this.classList.contains('folder-stage') ? 225 : 0
       const height = this.classList.contains('folder-caption') ? 56 : this.classList.contains('folder-title') ? 76 : 0
@@ -28,12 +28,12 @@ describe('五頁檔案夾工作區', () => {
     vi.stubGlobal('innerHeight',580)
     render(<App/>)
     expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
-    // Measuring again in document mode must not oscillate back to fixed mode.
+    // Reading keeps the same scroll owner across viewport sizes.
     fireEvent(window,new Event('resize'))
     expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
     vi.stubGlobal('innerHeight',720)
     fireEvent(window,new Event('resize'))
-    expect(document.querySelector('.folder-workspace')).not.toHaveClass('is-document')
+    expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
   })
   it('無效或無法讀寫偏好時，預設開啟且仍可在本次使用期間切換', () => {
     window.localStorage.setItem(motionPreferenceKey,'invalid')
@@ -188,18 +188,20 @@ describe('五頁檔案夾工作區', () => {
     expect(swipeStep(-48,0)).toBe(1);expect(swipeStep(48,32)).toBe(-1);expect(swipeStep(47,0)).toBe(0)
   })
   it('各頁／職業／快照的閱讀與展開狀態不混用', () => {
+    let pageTop=0
+    vi.spyOn(window,'scrollY','get').mockImplementation(()=>pageTop)
+    vi.spyOn(document.documentElement,'scrollHeight','get').mockReturnValue(3000)
+    vi.mocked(window.scrollTo).mockImplementation((options: ScrollToOptions | number, y?: number)=>{pageTop=typeof options==='number' ? y ?? 0 : options.top ?? 0})
     const renderPage=()=> <details data-memory="extra"><summary>內容說明</summary><p>可展開的測試內容</p></details>
     const view=render(<FolderWorkspace contextKey="v1:4" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>)
-    const reader=()=>panel().querySelector('.folder-reader')! as HTMLDivElement
-    const setSize=(node:HTMLDivElement)=>{Object.defineProperty(node,'scrollHeight',{configurable:true,value:1200});Object.defineProperty(node,'clientHeight',{configurable:true,value:300})}
-    setSize(reader()); reader().scrollTop=210; fireEvent.scroll(reader())
+    pageTop=210; fireEvent.scroll(window)
     const detail=panel().querySelector('details')!; detail.open=true; fireEvent(detail,new Event('toggle'))
-    go('風險'); setSize(reader()); expect(reader().scrollTop).toBe(0)
-    go('指標'); expect(reader().scrollTop).toBe(210); expect(panel().querySelector('details')).toHaveAttribute('open')
-    view.rerender(<FolderWorkspace contextKey="v1:2" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(reader().scrollTop).toBe(0)
+    go('風險'); expect(pageTop).toBe(0)
+    go('指標'); expect(pageTop).toBe(210); expect(panel().querySelector('details')).toHaveAttribute('open')
+    view.rerender(<FolderWorkspace contextKey="v1:2" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(pageTop).toBe(0)
     expect(panel().querySelector('details')).not.toHaveAttribute('open')
-    view.rerender(<FolderWorkspace contextKey="v1:4" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(reader().scrollTop).toBe(210)
-    view.rerender(<FolderWorkspace contextKey="v2:4" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(reader().scrollTop).toBe(0)
+    view.rerender(<FolderWorkspace contextKey="v1:4" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(pageTop).toBe(210)
+    view.rerender(<FolderWorkspace contextKey="v2:4" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(pageTop).toBe(0)
   })
   it('modal 隔離背景，關閉回焦點，外部導航可安全離開', () => {
     render(<App/>); go('論證')
