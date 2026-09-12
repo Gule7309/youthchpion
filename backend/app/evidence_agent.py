@@ -200,16 +200,30 @@ class AuthorityEvidenceAgent:
 
     @staticmethod
     def _default_selection(candidates: list[EvidenceItem]) -> list[EvidenceItem]:
-        official = [item for item in candidates if item.authority_tier == "A"][:2]
+        preferred_keys = ("refined_index", "youth_almp")
+        preferred = [
+            next(
+                (item for item in candidates if key in item.evidence_id),
+                None,
+            )
+            for key in preferred_keys
+        ]
+        selected = [item for item in preferred if item is not None]
+        official = [
+            item
+            for item in candidates
+            if item.authority_tier == "A" and item not in selected
+        ]
+        authority = [*selected, *official][:2]
         live = next(
             (
                 item
                 for item in candidates
-                if item.freshness.value == "LIVE" and item not in official
+                if item.freshness.value == "LIVE" and item not in authority
             ),
             None,
         )
-        return [*official, *([live] if live else [])][:3]
+        return [*authority, *([live] if live else [])][:3]
 
     async def _judge(
         self,

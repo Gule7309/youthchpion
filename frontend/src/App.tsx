@@ -51,9 +51,16 @@ function indicator(signal: OccupationSignal, id: string) {
 }
 
 function firstEvidenceSelection(items: EvidenceItem[]) {
-  const official = items.filter((item) => item.authority_tier === 'A').slice(0, 2)
-  const live = items.find((item) => item.freshness === 'LIVE' && !official.includes(item))
-  return [...official, ...(live ? [live] : [])].slice(0, 3).map((item) => item.evidence_id)
+  const preferredKeys = ['refined_index', 'youth_almp']
+  const preferred = preferredKeys
+    .map((key) => items.find((item) => item.evidence_id.includes(key)))
+    .filter((item): item is EvidenceItem => Boolean(item))
+  const officialFallback = items.filter(
+    (item) => item.authority_tier === 'A' && !preferred.includes(item),
+  )
+  const authority = [...preferred, ...officialFallback].slice(0, 2)
+  const live = items.find((item) => item.freshness === 'LIVE' && !authority.includes(item))
+  return [...authority, ...(live ? [live] : [])].slice(0, 3).map((item) => item.evidence_id)
 }
 
 function researchQuery(signal: OccupationSignal) {
