@@ -118,4 +118,3 @@ methodology 檢查。
 - 必要 claim 缺少證據時輸出 `PARTIAL` 與 gap，禁止用常識補齊。
 - 來源政策錯誤、excerpt/source 不一致或提前出版，整包拒絕。
 - Harness 輸出是可稽核證據，不代表因果結論，也不等同最終指標或政策建議。
-

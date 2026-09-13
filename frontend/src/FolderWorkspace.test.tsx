@@ -10,6 +10,7 @@ import {
 } from './FolderWorkspace'
 
 const tab = (name: string) => screen.getByRole('tab', { name })
+const go = (name: string) => fireEvent.click(tab(name))
 const panel = () => screen.getByRole('tabpanel')
 const renderWorkspace = (blocked = false, contextKey = 'run:4') => render(
   <FolderWorkspace
@@ -37,7 +38,7 @@ describe('五頁檔案夾工作區', () => {
   it('固定提供五個可存取分頁，預設顯示指標頁', () => {
     renderWorkspace()
     expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
-    expect(screen.getAllByRole('tab').map((item) => item.textContent)).toEqual(['指標', '比較', '診斷', '論證', '政策'])
+    expect(screen.getAllByRole('tab').map((item) => item.textContent)).toEqual(['指標', '排名', '診斷', '論證', '政策'])
     expect(tab('指標')).toHaveAttribute('aria-selected', 'true')
     expect(panel()).toHaveAttribute('id', 'panel-indicators')
     expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
@@ -82,6 +83,60 @@ describe('五頁檔案夾工作區', () => {
     expect(screen.getByText('已減少動畫，切換直接完成。')).toBeInTheDocument()
   })
 
+  it('無法讀寫動態偏好時仍可在本次使用期間切換', () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+    renderWorkspace()
+    const toggle = screen.getByRole('switch', { name: '動畫效果' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    get.mockRestore()
+  })
+
+  it('同一外夾由側邊變主頁時保留 DOM', () => {
+    renderWorkspace()
+    const shell = document.querySelector('[data-folder="risk"]')
+    expect(document.querySelectorAll('.folder-shell')).toHaveLength(5)
+    go('排名')
+    expect(document.querySelector('[data-folder="risk"]')).toBe(shell)
+    go('政策')
+    go('指標')
+    expect(document.querySelector('[data-folder="risk"]')).toBe(shell)
+    expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+  })
+
+  it('快速改選只保留最新目標並清除過期轉場', () => {
+    vi.useFakeTimers()
+    const view = renderWorkspace()
+    go('排名')
+    act(() => vi.advanceTimersByTime(100))
+    go('政策')
+    go('論證')
+    expect(document.querySelectorAll('.is-leaving')).toHaveLength(1)
+    act(() => vi.advanceTimersByTime(500))
+    expect(panel()).toHaveAttribute('id', 'panel-evidence')
+    expect(document.querySelector('.is-leaving')).toBeNull()
+    view.unmount()
+    act(() => vi.runAllTimers())
+  })
+
+  it('滾輪不換頁，只有標題列的明確水平滑動會換頁', () => {
+    renderWorkspace()
+    const header = () => panel().querySelector('.folder-title')!
+    const swipe = (node: Element, x1: number, x2: number, y2 = 0) => {
+      fireEvent.touchStart(node, { touches: [{ clientX: x1, clientY: 0 }] })
+      fireEvent.touchEnd(node, { touches: [], changedTouches: [{ clientX: x2, clientY: y2 }] })
+    }
+    swipe(header(), 100, 70)
+    expect(panel()).toHaveAttribute('id', 'panel-indicators')
+    swipe(header(), 100, 0)
+    expect(panel()).toHaveAttribute('id', 'panel-risk')
+    fireEvent.wheel(panel(), { deltaY: 9999 })
+    fireEvent.wheel(panel(), { deltaX: 9999 })
+    expect(panel()).toHaveAttribute('id', 'panel-risk')
+  })
+
   it('在各頁與各資料脈絡分開保存閱讀位置', () => {
     let pageTop = 0
     vi.spyOn(window, 'scrollY', 'get').mockImplementation(() => pageTop)
@@ -92,7 +147,7 @@ describe('五頁檔案夾工作區', () => {
     const view = renderWorkspace(false, 'run:4')
     pageTop = 210
     fireEvent.scroll(window)
-    fireEvent.click(tab('比較'))
+    fireEvent.click(tab('排名'))
     expect(pageTop).toBe(0)
     fireEvent.click(tab('指標'))
     expect(pageTop).toBe(210)

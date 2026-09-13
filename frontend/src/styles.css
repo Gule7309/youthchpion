@@ -225,5 +225,5 @@ footer { margin-top: 50px; padding: 24px 0; border-top: 1px solid var(--line); c
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; transition: none !important; }
+  *:not(.folder-workspace, .folder-workspace *) { scroll-behavior: auto !important; transition: none !important; }
 }

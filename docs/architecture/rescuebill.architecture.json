@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": { "title": "rescueBill｜目前程式架構", "quality_profile": "showcase" },
+  "layout": { "mode": "grid", "origin": [60, 70], "cols": 3, "cellW": 220, "cellH": 84, "gapX": 150, "gapY": 90 },
+  "components": [
+    { "id": "snapshot", "type": "database", "label": "已核對資料快照", "sublabel": "三類職業・全年齡求才", "row": 0, "col": 0 },
+    { "id": "dashboard", "type": "frontend", "label": "首頁與五頁分析", "sublabel": "React / TypeScript / Vite", "row": 0, "col": 1 },
+    { "id": "draft", "type": "frontend", "label": "會議草稿", "sublabel": "瀏覽器預覽・列印 PDF", "row": 0, "col": 2 },
+    { "id": "sources", "type": "external", "label": "公開資料與研究", "sublabel": "官方統計・職缺・研究來源", "row": 1, "col": 0 },
+    { "id": "api", "type": "backend", "label": "FastAPI", "sublabel": "更新請求・狀態查詢", "row": 1, "col": 1 },
+    { "id": "evidence", "type": "backend", "label": "研究與政策服務", "sublabel": "EvidenceService / Bedrock", "row": 1, "col": 2 },
+    { "id": "pipeline", "type": "backend", "label": "資料抓取管線", "sublabel": "PipelineService", "row": 2, "col": 0 },
+    { "id": "store", "type": "database", "label": "執行紀錄與資料版本", "sublabel": "本地檔案或 S3", "row": 2, "col": 1 },
+    { "id": "aws", "type": "cloud", "label": "AWS 部署範本", "sublabel": "SAM・HTTP API・Lambda", "row": 2, "col": 2 }
+  ],
+  "connections": [
+    { "id": "read-snapshot", "from": "snapshot", "to": "dashboard", "variant": "emphasis" },
+    { "id": "assemble-draft", "from": "dashboard", "to": "draft", "variant": "emphasis" },
+    { "id": "request-refresh", "from": "dashboard", "to": "api", "label": "更新請求", "labelDy": 24 },
+    { "id": "fetch-data", "from": "sources", "to": "pipeline" },
+    { "id": "save-version", "from": "pipeline", "to": "store" },
+    { "id": "read-version", "from": "store", "to": "api", "label": "舊版資料" },
+    { "id": "policy-service", "from": "api", "to": "evidence", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "目前前端", "items": ["從本地快照讀取；不套用未核定的 Risk 分數。", "會議草稿不呼叫 AI，資料來源與限制隨文件保留。"] },
+    { "dot": "amber", "title": "串接界線", "items": ["更新按鈕已呼叫 API；舊 20–29 歲格式尚未取代畫面快照。", "研究核對及政策服務存在於後端；新版 UI 尚未完成串接。"] },
+    { "dot": "violet", "title": "部署與模型待辦", "items": ["AWS 範本另含 S3 與每日排程；此圖未驗證雲端已部署。", "18–35 歲 A/B/C/H/D 模型、分類對齊與證據契約仍待整合。"] }
+  ]
+}

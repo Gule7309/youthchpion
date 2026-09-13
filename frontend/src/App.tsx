@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { BackendNotice } from './BackendNotice'
+import { ChangeText } from './AnnualChange'
 import {
   generatePolicy,
   getDashboard,
@@ -25,7 +27,10 @@ import { analysisFromDashboard, analysisKey } from './decisionModel'
 import { FolderWorkspace, type WorkspaceHandle } from './FolderWorkspace'
 import { Icon, type IconName } from './Icon'
 import { useDecisionMeeting } from './useDecisionMeeting'
+import { indicatorHelp, IndicatorExplanation, type IndicatorId } from './indicatorHelp'
 import './folderDashboard.css'
+import './indicatorHelp.css'
+import './uiRefinements.css'
 
 const number = new Intl.NumberFormat('zh-TW')
 const percent = (value?: number) => value == null ? '—' : `${(value * 100).toFixed(1)}%`
@@ -73,12 +78,18 @@ const RESEARCH_QUERIES: Record<string, string> = {
   '5': 'generative AI service sales occupations employment skills training policy',
 }
 
-type Detail = '資料來源' | '計算方式' | '清洗紀錄' | '估算限制'
+type Detail = '資料來源' | '計算方式' | '清洗紀錄' | '估算限制' | `指標 ${IndicatorId}`
 const DETAIL_ICONS: Record<Detail, IconName> = {
   資料來源: 'database',
   計算方式: 'formula',
   清洗紀錄: 'filter',
   估算限制: 'info',
+  '指標 S': 'formula',
+  '指標 A': 'users',
+  '指標 B': 'sparkles',
+  '指標 C': 'briefcase',
+  '指標 H': 'chart',
+  '指標 D': 'database',
 }
 const OCCUPATION_ICONS: Record<string, IconName> = {
   '2': 'book',
@@ -131,9 +142,14 @@ export default function App() {
   const [policy, setPolicy] = useState<PolicyResponse | null>(null)
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
+  const dismissNotice = useCallback(() => setNotice(''), [])
   const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [evidenceId, setEvidenceId] = useState<string | null>(null)
+  const [detailInstant, setDetailInstant] = useState(false)
+  const indicatorId = !evidenceId && detail.startsWith('指標 ')
+    ? detail.slice(3) as IndicatorId
+    : null
   const workspace = useRef<WorkspaceHandle>(null)
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
@@ -190,7 +206,9 @@ export default function App() {
     },
   } : null
 
-  function openDetail(kind: Detail, button: HTMLButtonElement) {
+  function openDetail(kind: Detail, button: HTMLButtonElement, instant = false) {
+    setDetailInstant(instant)
+    if (dialog.current) dialog.current.scrollTop = 0
     trigger.current = button
     setEvidenceId(null)
     setDetail(kind)
@@ -321,21 +339,23 @@ export default function App() {
     if (index === 0) return <aside className="panel policy-indicators" aria-label="目前職業核心指標">
       <div className="indicator-heading"><div className="section-kicker"><Icon name="formula" />核心指標</div><h2>{selected?.name}</h2></div>
       <div className="indicator-overview">
-        <div className="policy-risk">
+        <button type="button" className="policy-risk indicator-help-trigger indicator-risk-trigger" aria-label="查看 S 結構性 AI 暴露的意涵與計算方式" aria-haspopup="dialog" aria-controls="analysis-detail" onClick={(event) => openDetail('指標 S', event.currentTarget, event.detail === 0)}>
           <div className="risk-label"><span>實驗性結構暴露</span><Icon name="sparkles" /></div>
           <strong>{score(selected?.structural_exposure_score)}<small> / 100</small></strong>
           <span className="risk-caption">僅 A×B；完整 Risk 尚未發布</span>
-        </div>
+          <span className="indicator-help-link">意涵與計算方式 ↗</span>
+        </button>
         {flow && <AnalysisSummary flow={flow} />}
       </div>
       <div className="indicator-metrics">{([['A', '職業內青年占比'], ['B', 'AI 職業暴露'], ['H', '官方招募弱化'], ['D', 'AI 初階機會'], ['C', '台灣產業導入']] as const).map(([id, label]) => {
           const metric = selected ? indicator(selected, id) : { value: '—', ratio: undefined, note: '' }
-          return <div className="policy-metric" key={id}>
+          return <button type="button" className="policy-metric indicator-help-trigger" key={id} aria-label={`查看 ${id} ${label}的意涵與計算方式`} aria-haspopup="dialog" aria-controls="analysis-detail" onClick={(event) => openDetail(`指標 ${id}`, event.currentTarget, event.detail === 0)}>
             <span className={`metric-code metric-code--${id}`}>{id}</span>
             <div><span className="metric-name">{label}</span><small>{metric.note}</small></div>
             <strong>{metric.value}</strong>
             <div className="policy-meter" aria-hidden="true"><i style={meter(metric.ratio)} /></div>
-          </div>
+            <span className="indicator-help-link">意涵與計算方式 ↗</span>
+          </button>
         })}</div>
       <button className="policy-text-button" onClick={(event) => openDetail('計算方式', event.currentTarget)}><Icon name="formula" />查看計算方式<Icon name="arrow" /></button>
     </aside>
@@ -350,12 +370,12 @@ export default function App() {
         <div className="panel__header"><div><div className="section-kicker"><Icon name="users" />職業比較</div><h2 id="comparison-title" tabIndex={-1} data-flow-id="comparison-title">哪些職業值得優先關注？</h2></div><span className="status">{visibleSignals.length} 個職業</span></div>
         <p className="policy-muted">依同一次資料快照的 A×B 結構暴露排序；C 缺值時不產生完整風險分數。</p>
         <div className="policy-table-head"><span>職業</span><span>結構暴露</span><span>AI 初階機會</span></div>
-        <div role="group" aria-label="選擇職業">{visibleSignals.map((item) => <button className="policy-occupation" aria-pressed={selected?.code === item.code} key={item.code} onClick={() => selectOccupation(item.code)}>
-          <span className="occupation-label"><span className={`occupation-icon occupation-icon--${item.code}`}><Icon name={OCCUPATION_ICONS[item.code] ?? 'briefcase'} /></span><span><b>{item.name}</b><small>職業大類 {item.code}</small></span></span>
+        <div role="group" aria-label="選擇職業">{visibleSignals.map((item, index) => <button className="policy-occupation" aria-pressed={selected?.code === item.code} key={item.code} onClick={() => selectOccupation(item.code)}>
+          <span className="occupation-label"><span className="occupation-number" aria-label={`排名 ${index + 1}`}>{String(index + 1).padStart(2, '0')}</span><span className={`occupation-icon occupation-icon--${item.code}`}><Icon name={OCCUPATION_ICONS[item.code] ?? 'briefcase'} /></span><span><b>{item.name}</b><small>職業大類 {item.code}</small></span></span>
           <span><b>{score(item.structural_exposure_score)}</b><small>{item.complete_risk_score == null ? '完整風險未發布' : '完整風險可用'}</small></span>
           <strong>{percent(item.ai_entry_opportunity_rate)}</strong>
         </button>)}</div>
-        {selected && <div className="policy-trend"><div className="trend-heading"><span className="trend-icon"><Icon name="chart" /></span><div><h3>{selected.name}的職缺與官方求才訊號</h3><p>即時初階職缺與獨立歷史求才序列</p></div></div><p>勞動部官方求才年變化 {percent(selected.recruitment_yoy_change)}。</p>
+        {selected && <div className="policy-trend"><div className="trend-heading"><span className="trend-icon"><Icon name="chart" /></span><div><h3>{selected.name}的職缺與官方求才訊號</h3><p>即時初階職缺與獨立歷史求才序列</p></div></div><p>勞動部官方求才年變化 <ChangeText text={percent(selected.recruitment_yoy_change)} />。</p>
           {[{ label: '全部', value: selected.total_entry_jobs }, { label: 'AI', value: selected.ai_entry_jobs }].map((row) => <div className="policy-bar" key={row.label}><span>{row.label}</span><div><i style={{ width: `${row.value / maxJobs * 100}%` }} /></div><b>{number.format(row.value)} 個機會</b></div>)}
           <small>主計總處、ILO、台灣就業通與勞動部歷史求才資料依職業大類 Join；各來源用途與限制可追溯。</small>
           {flow?.analysis.claims[0] && <button className="policy-text-button" onClick={(event) => flow.navigate(2, `claim-${flow.analysis.claims[0].id}`, event.detail === 0)}>查看判讀原因<Icon name="arrow" /></button>}
@@ -365,7 +385,7 @@ export default function App() {
 
     if (index === 2) return <aside className="panel policy-diagnosis">
       <div className="section-kicker"><Icon name="sparkles" />職業診斷</div><h2>{selected?.name}</h2>
-      <div className="diagnostic-summary"><span className="diagnostic-icon"><Icon name="info" /></span><span className="policy-diagnostic-label">{selected?.priority === 'high' ? '相對高結構暴露' : selected?.priority === 'medium' ? '相對中段' : '持續觀察'}</span><p>實驗性結構暴露 {score(selected?.structural_exposure_score)}；20–24 歲就業 {number.format(selected?.youth_employed ?? 0)} 人，占該職業 {percent(selected?.youth_employment_share)}；官方求才年變化 {percent(selected?.recruitment_yoy_change)}。</p><small>資料信心：{confidence(selected?.data_confidence)}（與分數分開）</small></div>
+      <div className="diagnostic-summary"><span className="diagnostic-icon"><Icon name="info" /></span><span className="policy-diagnostic-label">{selected?.priority === 'high' ? '相對高結構暴露' : selected?.priority === 'medium' ? '相對中段' : '持續觀察'}</span><p>實驗性結構暴露 {score(selected?.structural_exposure_score)}；20–24 歲就業 {number.format(selected?.youth_employed ?? 0)} 人，占該職業 {percent(selected?.youth_employment_share)}；官方求才年變化 <ChangeText text={percent(selected?.recruitment_yoy_change)} />。</p><small>資料信心：{confidence(selected?.data_confidence)}（與分數分開）</small></div>
       <h3>判讀重點</h3><ul><li>A×B 只形成結構暴露排序；不是失業、取代率或完整 Risk。</li><li>H 來自獨立官方求才序列；D 是另一份即時職缺機會訊號，不互相反轉。</li><li>C 尚無可靠職業量化值，因此完整 Risk 保持空值。</li><li>公眾感受獨立呈現，不冒充客觀風險或因果。</li>{selected?.data_confidence_reasons?.map((reason) => <li key={reason}>{reason}</li>)}</ul>
       {flow && <ClaimList flow={flow} />}
       <details data-memory="public-opinion"><summary>公眾感受</summary>{dashboard.public_opinion.map((item) => <p key={String(item.label)}>{String(item.label)}：{String(item.value)}{String(item.unit)}（{String(item.survey_year)}）</p>)}</details>
@@ -399,29 +419,30 @@ export default function App() {
 
   return <div className="folder-app policy-dashboard" data-modal-open={modalOpen}>
     <header className="folder-topbar">
-      <div className="folder-brand"><span className="folder-brand-mark"><Icon name="logo" /></span><div><strong>YouthLM</strong><h1>青年 AI 就業轉型雷達</h1></div></div>
+      <div className="folder-brand"><a className="folder-brand-mark" href="#home" aria-label="返回 rescueBill 首頁"><Icon name="logo" /></a><div><strong>rescueBill</strong><h1 tabIndex={-1}>青年 AI 就業風險政策系統</h1></div></div>
       <label className="folder-occupation">目前職業<select aria-label="目前職業" value={selected?.code ?? ''} onChange={(event) => selectOccupation(event.target.value)} disabled={modalOpen}>{rankedSignals.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label>
       <div className="folder-period"><span><Icon name="calendar" />就業資料期 <b>{dgbasPeriod}</b></span><span><Icon name="clock" />最後發布 <b>{time(dashboard.published_at)}</b></span></div>
       <button className="button folder-refresh" disabled={Boolean(busy) || modalOpen} onClick={refresh}><Icon name="refresh" className={busy && !['SEARCHING', 'VERIFYING', 'POLICY'].includes(busy) ? 'is-spinning' : ''} />{busy && !['SEARCHING', 'VERIFYING', 'POLICY'].includes(busy) ? `${busy}…` : '重新抓取資料'}</button>
     </header>
-    <div className="folder-context"><span>全國職業大類 <span aria-hidden="true">/</span> 分析族群 20–24 歲 <span aria-hidden="true">/</span> 執行 {dashboard.analysis_run_id}</span><span className="snapshot-badge"><i />{dashboard.overall_status} · 可稽核資料快照</span></div>
-    {notice && <p className="policy-notice" role="status"><Icon name="info" />{notice}</p>}
+    <div className="folder-context"><span>全國職業大類 <span aria-hidden="true">/</span> 政策目標 18–35 歲 <span aria-hidden="true">/</span> 目前後端資料 20–24 歲 <span aria-hidden="true">/</span> 執行 {dashboard.analysis_run_id}</span><span className="snapshot-badge"><i />{dashboard.overall_status} · 可核對資料快照</span></div>
+    <BackendNotice message={notice} busy={Boolean(busy)} onDismiss={dismissNotice} />
     {error && <p className="error-banner" role="alert"><b>流程未完成</b>{error}</p>}
     <FolderWorkspace ref={workspace} contextKey={contextKey} blocked={modalOpen} onExternalNavigate={() => closeDetail(false)} renderPage={renderPage} />
 
-    <dialog ref={dialog} className="review-dialog" aria-labelledby="detail-title" onClose={() => setModalOpen(false)} onCancel={(event) => { event.preventDefault(); closeDetail() }} onClick={(event) => {
+    <dialog id="analysis-detail" ref={dialog} className={`review-dialog${indicatorId ? ' indicator-drawer' : ''}`} data-instant={detailInstant} aria-labelledby="detail-title" onClose={() => setModalOpen(false)} onCancel={(event) => { event.preventDefault(); closeDetail() }} onClick={(event) => {
       if (event.target === event.currentTarget) {
         const bounds = event.currentTarget.getBoundingClientRect()
         if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeDetail()
       }
     }}>
       <div className="dialog-heading"><span className="section-kicker"><Icon name={evidenceId ? 'book' : DETAIL_ICONS[detail]} />分析詳情</span><button className="dialog-close" autoFocus onClick={() => closeDetail()} aria-label="關閉詳情"><Icon name="close" /></button></div>
-      <h2 id="detail-title">{selected?.name} · {evidenceId ? '證據詳情' : detail}</h2>
+      <h2 id="detail-title">{indicatorId ? `${indicatorId} · ${indicatorHelp[indicatorId].title}` : `${selected?.name} · ${evidenceId ? '證據詳情' : detail}`}</h2>
+      {indicatorId && <><p className="policy-muted">目前職業：{selected?.name}</p><IndicatorExplanation id={indicatorId} /></>}
       {evidenceId && <EvidenceDetail evidence={analysis?.evidence.find((item) => item.id === evidenceId)} />}
-      {!evidenceId && detail === '資料來源' && <>{dashboard.sources.map((source) => <section key={source.source_id}><h3>{SOURCE_NAMES[source.source_id] ?? source.source_id} <span className={`status status--${source.status.toLowerCase()}`}>{source.status}</span></h3>{source.data_period && <p><b>資料期：</b>{source.data_period}</p>}<p><b>使用：</b>{source.fields_used?.join('、')}</p><p><b>原因：</b>{source.why_used}</p><p><b>限制：</b>{source.limitations}</p>{source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">查看來源說明頁 <Icon name="external" /></a>}</section>)}<p><b>LIVE：</b>本次重抓成功且內容雜湊有變；<b>UNCHANGED：</b>本次仍有重抓，但內容雜湊與上次相同。</p></>}
-      {!evidenceId && detail === '計算方式' && <><p><b>實驗性結構暴露 = 100 × √(A × B)</b></p><p>A：該職業內 20–24 歲就業人數／該職業全部就業人數；P：該職業占全部 20–24 歲就業的比率；B：ILO 生成式 AI 任務暴露 proxy；H：官方求才年減的獨立弱化訊號；D：台灣就業通 AI 初階職缺占比。H 與 D 均未塞入目前 A×B 排序。</p><p>目前選取：A={percent(selected?.youth_employment_share)}、P={percent(selected?.occupation_share_of_youth)}、B={score(selected?.exposure_score)}、H={percent(selected?.recruitment_weakening)}、D={percent(selected?.ai_entry_opportunity_rate)}；結構暴露 {score(selected?.structural_exposure_score)}，完整 Risk={score(selected?.complete_risk_score)}。</p><p>{String(metrics.metric_warning ?? '')}</p><code>{String(metrics.score_version ?? '')}</code></>}
-      {!evidenceId && detail === '清洗紀錄' && <>{dashboard.sources.map((source) => <section key={source.source_id}><h3>{SOURCE_NAMES[source.source_id] ?? source.source_id}</h3><p>{number.format(source.raw_rows)} {source.input_count_label} → {number.format(source.normalized_rows)} {source.output_count_label}</p><ol>{source.processing_steps?.map((step) => <li key={step}>{step}</li>)}</ol><code>SHA-256 {source.content_sha256?.slice(0, 20)}…</code></section>)}<p>JOIN 覆蓋率 {percent(dashboard.cleaning_summary.crosswalk_coverage)}；轉換規則 {dashboard.cleaning_summary.transform_version}。</p></>}
-      {!evidenceId && detail === '估算限制' && <><p>A×B 是跨來源的實驗性結構暴露排序，不是 AI 造成失業的因果估計，也不是個人被取代機率。</p><p>C（台灣產業實際 AI 導入）目前只有產業研究脈絡，缺少可比的「產業→職業」權重，所以完整 Risk 明確保持空值。</p><p>H 只代表公立就業服務求才弱化，不能歸因於 AI；D 的抽樣、分類與 crosswalk 品質仍需逐項顯示。民意調查只反映主觀感受。</p></>}
+      {!indicatorId && !evidenceId && detail === '資料來源' && <>{dashboard.sources.map((source) => <section key={source.source_id}><h3>{SOURCE_NAMES[source.source_id] ?? source.source_id} <span className={`status status--${source.status.toLowerCase()}`}>{source.status}</span></h3>{source.data_period && <p><b>資料期：</b>{source.data_period}</p>}<p><b>使用：</b>{source.fields_used?.join('、')}</p><p><b>原因：</b>{source.why_used}</p><p><b>限制：</b>{source.limitations}</p>{source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">查看來源說明頁 <Icon name="external" /></a>}</section>)}<p><b>LIVE：</b>本次重抓成功且內容雜湊有變；<b>UNCHANGED：</b>本次仍有重抓，但內容雜湊與上次相同。</p></>}
+      {!indicatorId && !evidenceId && detail === '計算方式' && <><p><b>實驗性結構暴露 = 100 × √(A × B)</b></p><p>A：該職業內 20–24 歲就業人數／該職業全部就業人數；P：該職業占全部 20–24 歲就業的比率；B：ILO 生成式 AI 任務暴露 proxy；H：官方求才年減的獨立弱化訊號；D：台灣就業通 AI 初階職缺占比。H 與 D 均未塞入目前 A×B 排序。</p><p>目前選取：A={percent(selected?.youth_employment_share)}、P={percent(selected?.occupation_share_of_youth)}、B={score(selected?.exposure_score)}、H={percent(selected?.recruitment_weakening)}、D={percent(selected?.ai_entry_opportunity_rate)}；結構暴露 {score(selected?.structural_exposure_score)}，完整 Risk={score(selected?.complete_risk_score)}。</p><p>{String(metrics.metric_warning ?? '')}</p><code>{String(metrics.score_version ?? '')}</code></>}
+      {!indicatorId && !evidenceId && detail === '清洗紀錄' && <>{dashboard.sources.map((source) => <section key={source.source_id}><h3>{SOURCE_NAMES[source.source_id] ?? source.source_id}</h3><p>{number.format(source.raw_rows)} {source.input_count_label} → {number.format(source.normalized_rows)} {source.output_count_label}</p><ol>{source.processing_steps?.map((step) => <li key={step}>{step}</li>)}</ol><code>SHA-256 {source.content_sha256?.slice(0, 20)}…</code></section>)}<p>JOIN 覆蓋率 {percent(dashboard.cleaning_summary.crosswalk_coverage)}；轉換規則 {dashboard.cleaning_summary.transform_version}。</p></>}
+      {!indicatorId && !evidenceId && detail === '估算限制' && <><p>A×B 是跨來源的實驗性結構暴露排序，不是 AI 造成失業的因果估計，也不是個人被取代機率。</p><p>C（台灣產業實際 AI 導入）目前只有產業研究脈絡，缺少可比的「產業→職業」權重，所以完整 Risk 明確保持空值。</p><p>H 只代表公立就業服務求才弱化，不能歸因於 AI；D 的抽樣、分類與 crosswalk 品質仍需逐項顯示。民意調查只反映主觀感受。</p></>}
     </dialog>
   </div>
 }

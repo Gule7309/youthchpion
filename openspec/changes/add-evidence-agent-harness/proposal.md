@@ -21,4 +21,3 @@ Youth Champion 需要一個可部署至 AWS、可稽核且不依賴新聞內容�
 
 新增 `backend/` Python 套件、測試、AWS runtime 入口與架構文件。此變更不建立前端、不計算 AI
 就業風險指標，也不產生最終政策建議。
-

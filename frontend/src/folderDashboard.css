@@ -59,7 +59,7 @@ html:has(.folder-app), body:has(.folder-app) { color-scheme:light; background:#f
 .folder-peek::before { display:none; }
 .folder-peek > * { flex-shrink:0; }
 .folder-peek > span:not(.peek-number) { white-space:nowrap; }
-/* Keep all five pages on one visual system and reading rhythm. */
+/* Keep the five pages on one palette and an explicit reading rhythm. */
 .folder-app { font-synthesis:weight; }
 .folder-app h2,.folder-app h3,.folder-app h4,.folder-app .policy-report h3 { font-weight:700; color:var(--ink); }
 .folder-app .policy-evidence b,.folder-app .occupation-label b,.folder-app .metric-name { font-weight:700; color:var(--ink); }
@@ -139,7 +139,7 @@ html:has(.folder-app), body:has(.folder-app) { color-scheme:light; background:#f
 }
 @media (max-width:1199px) { .folder-topbar { flex-wrap:wrap; }.folder-period { display:flex; order:4; width:100%; gap:20px; }.folder-period span { display:flex; }.folder-period b { font-size:12px; }.folder-context { padding-block:10px; } }
 
-/* Group overview content instead of stacking every metric. */
+/* Group the overview instead of stacking every piece of information. */
 .folder-app .policy-indicators { display:block; }
 .indicator-heading { display:flex; align-items:center; flex-wrap:wrap; gap:4px 18px; margin-bottom:14px; }
 .folder-app .indicator-heading h2 { margin:0; }
@@ -149,7 +149,8 @@ html:has(.folder-app), body:has(.folder-app) { color-scheme:light; background:#f
 .folder-app .policy-indicators > .policy-text-button { margin-top:8px; }
 @media (max-width:900px) { .indicator-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
-/* Laptop and scaled desktop viewports reserve room for content. */
+/* Laptop / scaled desktop viewports: reserve space for reading first.
+   Keep font sizes, touch targets and the folder's measured animation geometry. */
 @media (min-width:768px) and (max-height:820px) {
   .folder-app { padding:12px 20px 10px; }
   .folder-occupation { flex-direction:row; align-items:center; gap:8px; }
@@ -165,6 +166,7 @@ html:has(.folder-app), body:has(.folder-app) { color-scheme:light; background:#f
   .folder-peek { width:44px; }
   .indicator-heading { margin-bottom:12px; }
 }
+/* Bound the centered frame, rather than stretching it across large screens. */
 @media (min-width:1200px) {
   .folder-stage { padding-inline:100px; }
   .folder-caption { padding-inline:100px; }
@@ -182,7 +184,7 @@ html:has(.folder-app), body:has(.folder-app) { color-scheme:light; background:#f
   .indicator-overview .decision-summary .policy-text-button { width:100%; }
 }
 
-/* One scroll owner: page content determines card height on every viewport. */
+/* One scroll owner: content determines the card height on every viewport. */
 html:has(.folder-app) { scrollbar-gutter:stable; }
 html:has(.folder-app[data-modal-open=true]) { overflow:hidden; }
 .folder-app .is-document .folder-reader { overflow:visible; overscroll-behavior:auto; }
@@ -190,9 +192,9 @@ html:has(.folder-app[data-modal-open=true]) { overflow:hidden; }
 .is-document .folder-peek { top:120px; bottom:auto; height:200px; }
 .is-document .folder-peek.distance-2 { top:156px; height:140px; }
 
-/* Navigation and card share the same centered frame and side gutters. */
+/* Navigation and card use the same frame, including responsive side gutters. */
 .folder-workspace { --folder-frame-width:920px; --folder-gutter:100px; }
 .folder-stage { padding-inline:var(--folder-gutter); }
 @media (min-width:768px) and (max-width:1199px) { .folder-workspace { --folder-gutter:64px; } }
 @media (min-width:768px) and (max-width:1199px) and (max-height:820px) { .folder-workspace { --folder-gutter:56px; } }
-@media (max-width:767px) { .folder-workspace { --folder-gutter:0; } }
+@media (max-width:767px) { .folder-workspace { --folder-gutter:0px; } }

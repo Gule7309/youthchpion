@@ -40,4 +40,3 @@ Gateway，而不改公開 contract。
 - 嚴格 allowlist 會降低 recall；以人工審查新增網域，且 gaps 明示為 `PARTIAL`。
 - 公司調查的品質差異大；要求預核網域與同網域 methodology，仍需後續建立抽樣品質評分。
 - 目前 Bedrock 最終 JSON codec 是嚴格 boundary，但尚未做 JSON Schema constrained decoding；後續可加。
-

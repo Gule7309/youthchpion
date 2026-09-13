@@ -1,9 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from 'react'
 import { Icon, type IconName } from './Icon'
+import { isLandingHash } from './siteRoute'
 
 export const folderPages = [
   { id: 'indicators', label: '指標', icon: 'formula', description: '理解模型，看見每一項訊號' },
-  { id: 'risk', label: '比較', icon: 'chart', description: '比較職業，找到值得關注的變化' },
+  { id: 'risk', label: '排名', icon: 'chart', description: '比較職業，找到值得關注的變化' },
   { id: 'diagnosis', label: '診斷', icon: 'sparkles', description: '拆解原因，也保留其他可能的解釋' },
   { id: 'evidence', label: '論證', icon: 'book', description: '回到資料與研究，檢視判斷的依據' },
   { id: 'report', label: '政策', icon: 'report', description: '從證據出發，評估政策方向' },
@@ -17,11 +18,7 @@ export function adjacentPages(index: number) {
   return folderPages.map((page, i) => ({ ...page, index: i, distance: Math.abs(i-index) })).filter(page => page.distance > 0 && page.distance <= 2)
 }
 export function swipeStep(dx: number, dy: number) { return Math.abs(dx) >= 48 && Math.abs(dx) >= Math.abs(dy) * 1.5 ? (dx < 0 ? 1 : -1) : 0 }
-export type WorkspaceHandle = {
-  saveReading: () => void
-  focusCurrent: () => void
-  navigate: (index: number, target: string, context: string, instant?: boolean) => void
-}
+export type WorkspaceHandle = { saveReading: () => void; focusCurrent: () => void; navigate: (index: number, target: string, context: string, instant?: boolean) => void }
 export const motionPreferenceKey = 'youthlm.folder-motion'
 function savedReducedMotion() {
   try { return window.localStorage.getItem(motionPreferenceKey) === 'reduced' }
@@ -37,12 +34,7 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
   const [reduced, setReduced] = useState(savedReducedMotion)
   const [announcement, setAnnouncement] = useState('')
   const [contentInstant, setContentInstant] = useState(false)
-  const [destination, setDestination] = useState<{
-    index: number
-    target: string
-    context: string
-    serial: number
-  } | null>(null)
+  const [destination, setDestination] = useState<{ index: number; target: string; context: string; serial: number } | null>(null)
   const destinationSerial = useRef(0)
   const current = useRef(active)
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
@@ -78,25 +70,18 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     if (!reader) return
     const state = memory.current.get(keyFor(i))
     for (const detail of reader.querySelectorAll<HTMLDetailsElement>('details[data-memory]')) detail.open = state?.expanded.includes(detail.dataset.memory!) ?? false
-    window.scrollTo({
-      top: Math.min(state?.top ?? 0, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)),
-      behavior: 'instant',
-    })
+    window.scrollTo({ top: Math.min(state?.top ?? 0, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)), behavior: 'instant' })
   }
   function focusCurrent() { tabs.current[current.current]?.focus({ preventScroll: true }) }
-  useImperativeHandle(ref, () => ({
-    saveReading: () => remember(),
-    focusCurrent,
-    navigate(index, target, context, instant = false) {
-      if (live.current.blocked || context !== live.current.contextKey
-        || index < 0 || index >= folderPages.length) return
-      const noMovement = instant || Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
-      select(index, 'content', noMovement)
-      setDestination({ index, target, context, serial: ++destinationSerial.current })
-    },
-  }))
+  useImperativeHandle(ref, () => ({ saveReading: () => remember(), focusCurrent, navigate(index, target, context, instant = false) {
+    if (live.current.blocked || context !== live.current.contextKey || index < 0 || index >= folderPages.length) return
+    const noMovement = instant || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    select(index, 'content', noMovement)
+    setDestination({ index, target, context, serial: ++destinationSerial.current })
+  } }))
   function settle() { revision.current++; clearTimeout(timer.current); setOutgoing(null) }
-  // Decorative shells keep their identity while text stays in the accessible panel.
+  // Persistent decorative shells keep identity when a side folder becomes the
+  // main folder. Text lives outside this layer and is never scaled.
   function positionShells(instant = false) {
     const host = stage.current
     const main = windowRef.current
@@ -136,11 +121,7 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     geometryReady.current = true
     host.dataset.shellsReady = 'true'
   }
-  function select(
-    index: number,
-    source: 'tab' | 'side' | 'swipe' | 'history' | 'content' = 'tab',
-    instant = false,
-  ) {
+  function select(index: number, source: 'tab' | 'side' | 'swipe' | 'history' | 'content' = 'tab', instant = false) {
     if (index < 0 || index >= folderPages.length || (live.current.blocked && source !== 'history')) return
     setDestination(null)
     setContentInstant(instant)
@@ -154,17 +135,14 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     clearTimeout(timer.current)
     const version = ++revision.current
     setOutgoing(live.current.reduced || instant ? null : old)
-    if (!live.current.reduced && !instant) {
-      timer.current = setTimeout(() => {
-        if (version === revision.current) setOutgoing(null)
-      }, 460)
-    }
+    if (!live.current.reduced && !instant) timer.current = setTimeout(() => { if (version === revision.current) setOutgoing(null) }, 460)
     if (source !== 'history') window.history.pushState(null, '', `#${folderPages[index].id}`)
     if (mustFocus) { pendingFocus.current = true; tabs.current[index]?.focus({ preventScroll: true }) }
     if (source === 'swipe') setAnnouncement(`${folderPages[index].label}，第 ${index + 1} 頁，共 5 頁`)
   }
   useEffect(() => {
     const sync = () => {
+      if (isLandingHash(window.location.hash)) return
       const index = pageFromHash(window.location.hash)
       const hash = `#${folderPages[index].id}`
       if (window.location.hash !== hash) window.history.replaceState(null, '', hash)
@@ -191,8 +169,7 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
   useLayoutEffect(() => {
     if (!destination || blocked || destination.context !== contextKey || destination.index !== active) return
     const panel = panels.current[active]
-    const target = [...(panel?.querySelectorAll<HTMLElement>('[data-flow-id]') ?? [])]
-      .find((element) => element.dataset.flowId === destination.target)
+    const target = [...(panel?.querySelectorAll<HTMLElement>('[data-flow-id]') ?? [])].find(el => el.dataset.flowId === destination.target)
     const focus = target ?? panel
     if (!target) setAnnouncement('此內容目前不可用，已回到對應分頁。')
     focus?.focus({ preventScroll: true })
@@ -209,9 +186,8 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     }
     resize()
     window.addEventListener('resize', resize)
-    const observer = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(() => positionShells())
-      : undefined
+    // Content height changes should resize the shell, not cancel a page transition.
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => positionShells()) : undefined
     if (stage.current?.parentElement) observer?.observe(stage.current.parentElement)
     if (windowRef.current) observer?.observe(windowRef.current)
     if (caption.current) observer?.observe(caption.current)
@@ -220,8 +196,8 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
   useEffect(() => {
     const save = () => {
       const viewport = layoutViewport.current
-      if (!live.current.blocked && viewport.width === window.innerWidth
-        && viewport.height === window.innerHeight) remember()
+      // Ignore scroll clamping emitted before viewport layout has settled.
+      if (!live.current.blocked && viewport.width === window.innerWidth && viewport.height === window.innerHeight) remember()
     }
     window.addEventListener('scroll', save, { passive: true })
     return () => window.removeEventListener('scroll', save)
@@ -245,11 +221,7 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     const delta = swipeStep(e.changedTouches[0].clientX-start.x, e.changedTouches[0].clientY-start.y)
     if (delta) { suppressClick.current = true; select(current.current + delta, 'swipe') }
   }
-  return <div
-    className={`folder-workspace is-document${outgoing !== null ? ' is-transitioning' : ''}`}
-    data-reduced-motion={reduced}
-    data-content-instant={contentInstant}
-  >
+  return <div className={`folder-workspace is-document${outgoing !== null ? ' is-transitioning' : ''}`} data-reduced-motion={reduced} data-content-instant={contentInstant}>
     <button className="folder-skip" onClick={() => panels.current[active]?.focus({ preventScroll: true })}>跳至目前頁內容</button>
     <div className="folder-tabs" role="tablist" aria-label="分析分頁" style={{ '--selected': active } as CSSProperties}>
       <div className="folder-tab-highlight" aria-hidden="true" inert style={{ clipPath: `inset(0 ${(4-active)*20}% 0 ${active*20}% round 32px)` }}>

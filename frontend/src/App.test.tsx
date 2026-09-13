@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { dashboardFixture } from './test/decisionFixtures'
 
 describe('App', () => {
   beforeEach(() => {
@@ -158,5 +159,31 @@ describe('App', () => {
     expect(JSON.parse(String(verifyCall?.[1]?.body))).toMatchObject({ occupation_code: '4' })
     fireEvent.click(screen.getByRole('tab', { name: '政策' }))
     expect(screen.getByRole('button', { name: '產生三個政策選項' })).toBeEnabled()
+  })
+
+  it('keeps all six indicator explanation drawers on the live dashboard', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => dashboardFixture,
+    }))
+
+    render(<App />)
+    await screen.findByRole('button', { name: /^查看 S / })
+    const dialog = document.querySelector('dialog')!
+    Object.defineProperty(dialog, 'showModal', {
+      value: () => dialog.setAttribute('open', ''),
+    })
+    Object.defineProperty(dialog, 'close', {
+      value: () => dialog.removeAttribute('open'),
+    })
+
+    for (const id of ['S', 'A', 'B', 'C', 'H', 'D']) {
+      const trigger = screen.getByRole('button', { name: new RegExp(`^查看 ${id} `) })
+      fireEvent.click(trigger)
+      expect(dialog).toHaveClass('indicator-drawer')
+      expect(within(dialog).getByRole('heading', { level: 2 })).toHaveTextContent(`${id} ·`)
+      fireEvent.click(within(dialog).getByRole('button', { name: '關閉詳情' }))
+      expect(trigger).toHaveFocus()
+    }
   })
 })
