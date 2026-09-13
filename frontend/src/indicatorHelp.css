@@ -1,4 +1,6 @@
 .folder-app .indicator-help-trigger { width:100%; text-align:left; font-family:inherit; color:inherit; cursor:pointer; }
+.folder-app .indicator-risk-trigger { border:1px solid transparent; }
+.folder-app .policy-metric .indicator-help-link { grid-column:2 / -1; }
 .indicator-help-link { display:block; font-size:12px; font-weight:600; text-decoration:underline; text-underline-offset:3px; color:#104b63; margin-top:5px; }
 .folder-app .indicator-help-trigger:focus-visible { outline:3px solid #276c8d; outline-offset:3px; }
 @media (hover:hover) and (pointer:fine) { .folder-app .indicator-help-trigger:hover { background:#eaf3f7; border-color:#91b4c5; } }

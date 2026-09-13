@@ -1,10 +1,14 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Site from './Site'
+import { dashboardFixture } from './test/decisionFixtures'
 
 beforeEach(() => { vi.spyOn(window, 'scrollTo').mockImplementation(() => {}) })
-afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 function go(hash: string) { act(() => { window.history.pushState(null, '', hash); window.dispatchEvent(new HashChangeEvent('hashchange')) }) }
+function mockDashboard() {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => dashboardFixture }))
+}
 describe('Landing page and dashboard entry', () => {
   it('opens the homepage without an API call and previews verified occupations', () => {
     window.history.replaceState(null, '', '/')
@@ -22,11 +26,12 @@ describe('Landing page and dashboard entry', () => {
     expect(screen.getByText('+2.65')).toBeInTheDocument()
     expect(screen.getByText(/全年齡的求才人次，不是青年失業率/)).toBeInTheDocument()
   })
-  it('enters the dashboard and returns home without its hash being rewritten', () => {
+  it('enters the dashboard and returns home without its hash being rewritten', async () => {
     window.history.replaceState(null, '', '/')
+    mockDashboard()
     render(<Site />)
     go('#indicators')
-    expect(screen.getByRole('tab', { name: '指標' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('tab', { name: '指標' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('link', { name: '返回 rescueBill 首頁' })).toHaveAttribute('href', '#home')
     expect(document.title).toBe('rescueBill｜青年 AI 就業風險政策系統')
     go('#home')
@@ -35,10 +40,11 @@ describe('Landing page and dashboard entry', () => {
     go('#home-flow')
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
   })
-  it('preserves direct dashboard links and browser history navigation', () => {
+  it('preserves direct dashboard links and browser history navigation', async () => {
     window.history.replaceState(null, '', '/#risk')
+    mockDashboard()
     render(<Site />)
-    expect(screen.getByRole('tab', { name: '排名' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('tab', { name: '排名' })).toHaveAttribute('aria-selected', 'true')
     act(() => { window.history.replaceState(null, '', '/#home'); window.dispatchEvent(new PopStateEvent('popstate')) })
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Bill 畢業了')
   })

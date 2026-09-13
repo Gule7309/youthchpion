@@ -59,7 +59,7 @@ Resources:
   YouthChampionFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../build/lambda
+      CodeUri: ../build/lambda-agent-v2
       Handler: app.lambda_handler.handler
       Events:
         Root:

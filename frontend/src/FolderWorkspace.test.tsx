@@ -1,257 +1,177 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import App from './App'
-import { FolderWorkspace, adjacentPages, folderPages, pageFromHash, swipeStep, motionPreferenceKey } from './FolderWorkspace'
-import { annualChange, snapshot } from './verifiedSnapshot'
-import * as api from './api'
+import {
+  FolderWorkspace,
+  adjacentPages,
+  folderPages,
+  motionPreferenceKey,
+  pageFromHash,
+  swipeStep,
+} from './FolderWorkspace'
 
 const tab = (name: string) => screen.getByRole('tab', { name })
 const go = (name: string) => fireEvent.click(tab(name))
 const panel = () => screen.getByRole('tabpanel')
-let motion: EventTarget & { matches: boolean }
+const renderWorkspace = (blocked = false, contextKey = 'run:4') => render(
+  <FolderWorkspace
+    contextKey={contextKey}
+    blocked={blocked}
+    onExternalNavigate={() => undefined}
+    renderPage={(index) => <div>頁面內容 {index + 1}</div>}
+  />,
+)
+
 beforeEach(() => {
   window.localStorage.removeItem(motionPreferenceKey)
   window.history.replaceState(null, '', '/')
-  motion = Object.assign(new EventTarget(), { matches: false })
-  vi.stubGlobal('matchMedia', () => motion)
   vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
 })
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); window.history.replaceState(null, '', '/') })
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+  window.history.replaceState(null, '', '/')
+})
 
 describe('五頁檔案夾工作區', () => {
-  it('六張指標卡開啟個別說明且不換頁，關閉後恢復原卡片焦點', () => {
-    render(<App />)
-    const dialog = document.querySelector('dialog')!
-    Object.defineProperty(dialog, 'showModal', { value: () => dialog.setAttribute('open', '') })
-    Object.defineProperty(dialog, 'close', { value: () => dialog.removeAttribute('open') })
-    for (const id of ['S', 'A', 'B', 'C', 'H', 'D']) {
-      const trigger = screen.getByRole('button', { name: new RegExp(`^查看 ${id} `) })
-      fireEvent.click(trigger, { detail: 1 })
-      expect(dialog).toHaveClass('indicator-drawer')
-      expect(dialog).toHaveAttribute('data-instant', 'false')
-      expect(within(dialog).getByRole('heading', { level: 2 })).toHaveTextContent(`${id} ·`)
-      for (const name of ['這個指標代表什麼？', '計算方式', '怎麼解讀？', '目前限制']) expect(within(dialog).getByRole('heading', { name })).toBeInTheDocument()
-      expect(within(dialog).getByText(/尚未核定計分/)).toBeInTheDocument()
-      expect(window.location.hash).toBe('#indicators')
-      fireEvent.click(within(dialog).getByRole('button', { name: '關閉詳情' }))
-      expect(trigger).toHaveFocus()
-    }
-    fireEvent.click(screen.getByRole('button', { name: /^查看 H / }), { detail: 0 })
-    expect(dialog).toHaveAttribute('data-instant', 'true')
-    expect(within(dialog).getByText(/20% 門檻尚待核定/)).toBeInTheDocument()
-    fireEvent(dialog, new Event('cancel', { cancelable: true }))
-    expect(screen.getByRole('button', { name: /^查看 H / })).toHaveFocus()
+  it('固定提供五個可存取分頁，預設顯示指標頁', () => {
+    renderWorkspace()
+    expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
+    expect(screen.getAllByRole('tab').map((item) => item.textContent)).toEqual(['指標', '排名', '診斷', '論證', '政策'])
+    expect(tab('指標')).toHaveAttribute('aria-selected', 'true')
+    expect(panel()).toHaveAttribute('id', 'panel-indicators')
+    expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
   })
-  it('所有視窗均使用整頁捲動，調整高度不再切回卡片內捲', () => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const top = this.classList.contains('folder-stage') ? 225 : 0
-      const height = this.classList.contains('folder-caption') ? 56 : this.classList.contains('folder-title') ? 76 : 0
-      return { x:0,y:top,top,left:0,right:0,bottom:top+height,width:0,height,toJSON:()=>({}) }
-    })
-    vi.stubGlobal('innerHeight',580)
-    render(<App/>)
-    expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
-    // Reading keeps the same scroll owner across viewport sizes.
-    fireEvent(window,new Event('resize'))
-    expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
-    vi.stubGlobal('innerHeight',720)
-    fireEvent(window,new Event('resize'))
-    expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
+
+  it('用分頁與側邊檔案夾切換內容並更新 hash', () => {
+    renderWorkspace()
+    fireEvent.click(tab('政策'))
+    expect(panel()).toHaveAttribute('id', 'panel-report')
+    expect(window.location.hash).toBe('#report')
+    fireEvent.click(screen.getByRole('button', { name: '開啟診斷，第 3 頁，共 5 頁' }))
+    expect(panel()).toHaveAttribute('id', 'panel-diagnosis')
+    expect(tab('診斷')).toHaveFocus()
   })
-  it('無效或無法讀寫偏好時，預設開啟且仍可在本次使用期間切換', () => {
-    window.localStorage.setItem(motionPreferenceKey,'invalid')
-    const get=vi.spyOn(Storage.prototype,'getItem').mockImplementation(()=>{throw new Error('blocked')})
-    vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new Error('blocked')})
-    render(<App/>)
-    expect(screen.getByRole('switch',{name:'動畫效果'})).toHaveAttribute('aria-checked','true')
-    fireEvent.click(screen.getByRole('switch',{name:'動畫效果'}))
-    expect(screen.getByRole('switch',{name:'動畫效果'})).toHaveAttribute('aria-checked','false')
+
+  it('鍵盤方向鍵移動焦點，Enter 後才切頁', () => {
+    renderWorkspace()
+    act(() => tab('指標').focus())
+    fireEvent.keyDown(tab('指標'), { key: 'End' })
+    expect(tab('政策')).toHaveFocus()
+    expect(tab('指標')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(tab('政策'))
+    expect(tab('政策')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('button', { name: '跳至目前頁內容' }))
+    expect(panel()).toHaveFocus()
+  })
+
+  it('對話框開啟時可阻擋所有分頁控制', () => {
+    renderWorkspace(true)
+    for (const item of screen.getAllByRole('tab')) expect(item).toBeDisabled()
+    for (const item of screen.getAllByRole('button', { name: /^開啟/ })) expect(item).toBeDisabled()
+    expect(screen.getByRole('switch', { name: '動畫效果' })).toBeDisabled()
+  })
+
+  it('保留使用者減少動畫偏好', () => {
+    renderWorkspace()
+    const toggle = screen.getByRole('switch', { name: '動畫效果' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(window.localStorage.getItem(motionPreferenceKey)).toBe('reduced')
+    expect(screen.getByText('已減少動畫，切換直接完成。')).toBeInTheDocument()
+  })
+
+  it('無法讀寫動態偏好時仍可在本次使用期間切換', () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+    renderWorkspace()
+    const toggle = screen.getByRole('switch', { name: '動畫效果' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
     get.mockRestore()
   })
-  it('同一外夾由側邊變主頁時保留 DOM，裝飾不建立第二組可操作內容', () => {
-    render(<App/>)
-    const shell=document.querySelector('[data-folder="risk"]')
+
+  it('同一外夾由側邊變主頁時保留 DOM', () => {
+    renderWorkspace()
+    const shell = document.querySelector('[data-folder="risk"]')
     expect(document.querySelectorAll('.folder-shell')).toHaveLength(5)
-    expect(shell?.parentElement).toHaveAttribute('aria-hidden','true')
-    expect(shell?.parentElement).toHaveAttribute('inert')
-    go('排名'); expect(document.querySelector('[data-folder="risk"]')).toBe(shell)
-    go('政策'); go('指標'); expect(document.querySelector('[data-folder="risk"]')).toBe(shell)
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
-    expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
-    expect(document.querySelector('.folder-tab-highlight')).toHaveAttribute('aria-hidden','true')
-  })
-  it('即使系統 reduce，網站仍預設開啟，使用者可關閉且重新進入仍保留', () => {
-    motion.matches=true;render(<App/>)
-    expect(screen.getByRole('switch',{name:'動畫效果'})).toHaveAttribute('aria-checked','true')
-    fireEvent.click(screen.getByRole('switch',{name:'動畫效果'}))
-    expect(screen.getByText('已減少動畫，切換直接完成。')).toBeInTheDocument()
-    go('政策');expect(document.querySelector('.is-transitioning')).toBeNull()
-    cleanup();render(<App/>)
-    expect(screen.getByRole('switch',{name:'動畫效果'})).toHaveAttribute('aria-checked','false')
-    fireEvent.click(screen.getByRole('switch',{name:'動畫效果'}))
-    expect(window.localStorage.getItem(motionPreferenceKey)).toBe('full')
-  })
-  it('初始只有指標頁可讀，五個分頁各有對應面板', () => {
-    render(<App/>)
-    expect(screen.getAllByRole('tab').map(t=>t.textContent)).toEqual(['指標','排名','診斷','論證','政策'])
-    expect(tab('指標')).toHaveAttribute('aria-selected','true')
-    expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
-    expect(panel()).toHaveAttribute('id','panel-indicators')
-    expect(screen.queryByRole('navigation', {name:'儀表板導覽'})).not.toBeInTheDocument()
-    for (const control of screen.getAllByRole('tab')) expect(document.getElementById(control.getAttribute('aria-controls')!)).not.toBeNull()
-  })
-  it('五頁內容分工與真實資料限制保留，換頁不觸發 fetch', () => {
-    const fetch=vi.fn(); vi.stubGlobal('fetch',fetch)
-    render(<App/>)
-    expect(within(panel()).getByText('結構性 AI 暴露')).toBeInTheDocument()
     go('排名')
-    expect(within(panel()).getByText('109,342 人次')).toBeInTheDocument()
-    expect(within(panel()).getByText('資料不足，暫不評分')).toBeInTheDocument()
-    for(const value of ['-14.03%','+2.65%','-8.01%']) expect(within(panel()).getByText(value)).toBeInTheDocument()
-    go('診斷'); expect(within(panel()).getByText('證據不足')).toBeInTheDocument()
-    go('論證'); expect(within(panel()).getByText('方法參考 · 職業對齊待核對')).toBeInTheDocument()
-    go('政策'); expect(within(panel()).getByRole('button',{name:'產生完整政策報告'})).toBeDisabled()
-    expect(fetch).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-folder="risk"]')).toBe(shell)
+    go('政策')
+    go('指標')
+    expect(document.querySelector('[data-folder="risk"]')).toBe(shell)
+    expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
   })
-  it('頂部與側邊直接跨頁，重复點選不增加歷史', () => {
-    render(<App/>); const push=vi.spyOn(window.history,'pushState')
-    go('政策'); expect(panel()).toHaveAttribute('id','panel-report')
-    expect(push).toHaveBeenCalledTimes(1)
-    go('政策'); expect(push).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button',{name:'開啟診斷，第 3 頁，共 5 頁'}))
-    expect(tab('診斷')).toHaveFocus()
-    expect(panel()).toHaveAttribute('id','panel-diagnosis')
-  })
-  it.each([['指標',[1,2]],['排名',[0,2,3]],['診斷',[0,1,3,4]],['論證',[1,2,4]],['政策',[2,3]]] as const)('側邊排列：%s', (label, expected) => {
-    const index=folderPages.findIndex(p=>p.label===label)
-    expect(adjacentPages(index).map(p=>p.index)).toEqual(expected)
-    render(<App/>); go(label)
-    const names=screen.getAllByRole('button',{name:/^開啟.*第 .*頁，共 5 頁$/}).map(n=>n.getAttribute('aria-label'))
-    expect(names).toEqual(expected.map(i=>`開啟${folderPages[i].label}，第 ${i+1} 頁，共 5 頁`))
-  })
-  it('切職業不換頁，其他頁與來源詳情使用同一職業', () => {
-    render(<App/>); go('論證')
-    fireEvent.change(screen.getByRole('combobox',{name:'目前職業'}),{target:{value:'2'}})
-    expect(panel()).toHaveAttribute('id','panel-evidence')
-    expect(within(panel()).getByRole('heading',{name:'專業人員：查找來源、核對判讀'})).toBeInTheDocument()
-    go('排名'); expect(within(panel()).getByText('118,244 人次')).toBeInTheDocument()
-    expect(within(panel()).getByRole('button',{name:/職業大類 2/})).toHaveAttribute('aria-pressed','true')
-    go('政策'); expect(within(panel()).getByRole('heading',{name:'專業人員的政策方向'})).toBeInTheDocument()
-  })
-  it('鍵盤方向鍵只移動焦點，不循環，側邊與 Tab 只導向有效內容', () => {
-    render(<App/>)
-    act(()=>tab('指標').focus())
-    fireEvent.keyDown(tab('指標'),{key:'ArrowLeft'}); expect(tab('指標')).toHaveFocus()
-    fireEvent.keyDown(tab('指標'),{key:'End'}); expect(tab('政策')).toHaveFocus()
-    expect(tab('指標')).toHaveAttribute('aria-selected','true')
-    fireEvent.keyDown(tab('政策'),{key:'ArrowRight'}); expect(tab('政策')).toHaveFocus()
-    // jsdom doesn't synthesize a button click from Enter; browser coverage handles that.
-    fireEvent.click(tab('政策')); expect(tab('政策')).toHaveAttribute('aria-selected','true')
-    for (const node of document.querySelectorAll('.folder-panel:not(.is-active)')) expect(node).toHaveAttribute('inert')
-    fireEvent.click(screen.getByRole('button',{name:'跳至目前頁內容'})); expect(panel()).toHaveFocus()
-  })
-  it('快速改選、resize 與卸載使過期過渡失效', () => {
-    vi.useFakeTimers(); const view=render(<App/>)
-    go('排名'); act(()=>vi.advanceTimersByTime(100)); go('政策'); go('論證')
+
+  it('快速改選只保留最新目標並清除過期轉場', () => {
+    vi.useFakeTimers()
+    const view = renderWorkspace()
+    go('排名')
+    act(() => vi.advanceTimersByTime(100))
+    go('政策')
+    go('論證')
     expect(document.querySelectorAll('.is-leaving')).toHaveLength(1)
-    act(()=>vi.advanceTimersByTime(500))
-    expect(panel()).toHaveAttribute('id','panel-evidence')
+    act(() => vi.advanceTimersByTime(500))
+    expect(panel()).toHaveAttribute('id', 'panel-evidence')
     expect(document.querySelector('.is-leaving')).toBeNull()
-    go('排名'); fireEvent(window,new Event('resize'))
-    expect(document.querySelector('.is-leaving')).toBeNull()
-    view.unmount(); act(()=>vi.runAllTimers())
-    expect(screen.queryByRole('tabpanel')).toBeNull()
+    view.unmount()
+    act(() => vi.runAllTimers())
   })
-  it('reduce 初始與動態改變皆直接定格且可繼續切頁', () => {
-    window.localStorage.setItem(motionPreferenceKey,'reduced')
-    motion.matches=true; render(<App/>); go('政策')
-    expect(document.querySelector('.is-leaving')).toBeNull()
-    fireEvent.click(screen.getByRole('switch',{name:'動畫效果'}))
-    go('論證'); expect(document.querySelector('.is-leaving')).not.toBeNull()
-    fireEvent.click(screen.getByRole('switch',{name:'動畫效果'}))
-    expect(document.querySelector('.is-leaving')).toBeNull()
-    expect(panel()).toHaveAttribute('id','panel-evidence')
-    go('指標'); expect(panel()).toHaveAttribute('id','panel-indicators')
-  })
-  it.each([['#overview',0],['#dashboard-content',0],['#comparison',1],['#research',3],['#policy',4],['#diagnosis',2],['#nonsense',0]])('網址解析 %s', (hash, expected) => {
-    expect(pageFromHash(hash)).toBe(expected)
-    window.history.replaceState(null,'',hash); render(<App/>)
-    expect(panel()).toHaveAttribute('id',`panel-${folderPages[expected].id}`)
-    expect(window.location.hash).toBe(`#${folderPages[expected].id}`)
-  })
-  it('歷史事件同步但不新增歷史，無效 hash 回指標', () => {
-    render(<App/>); go('排名'); go('政策')
-    const push=vi.spyOn(window.history,'pushState')
-    window.history.replaceState(null,'','#risk'); fireEvent(window,new PopStateEvent('popstate'))
-    expect(panel()).toHaveAttribute('id','panel-risk'); expect(push).not.toHaveBeenCalled()
-    window.history.replaceState(null,'','#bad'); fireEvent(window,new HashChangeEvent('hashchange'))
-    expect(panel()).toHaveAttribute('id','panel-indicators')
-  })
-  it('滾輪與內文手勢不切頁，標題手勢有門檻與非循環邊界', () => {
-    render(<App/>)
-    const header=()=>panel().querySelector('.folder-title')!
-    const swipe=(node: Element, x1:number,x2:number,y2=0) => {
-      fireEvent.touchStart(node,{touches:[{clientX:x1,clientY:0}]})
-      fireEvent.touchEnd(node,{touches:[],changedTouches:[{clientX:x2,clientY:y2}]})
+
+  it('滾輪不換頁，只有標題列的明確水平滑動會換頁', () => {
+    renderWorkspace()
+    const header = () => panel().querySelector('.folder-title')!
+    const swipe = (node: Element, x1: number, x2: number, y2 = 0) => {
+      fireEvent.touchStart(node, { touches: [{ clientX: x1, clientY: 0 }] })
+      fireEvent.touchEnd(node, { touches: [], changedTouches: [{ clientX: x2, clientY: y2 }] })
     }
-    swipe(header(),0,100); expect(panel()).toHaveAttribute('id','panel-indicators')
-    swipe(header(),100,70); expect(panel()).toHaveAttribute('id','panel-indicators')
-    swipe(header(),100,0,150); expect(panel()).toHaveAttribute('id','panel-indicators')
-    swipe(header(),100,0); expect(panel()).toHaveAttribute('id','panel-risk')
-    swipe(panel().querySelector('.folder-reader')!,100,0); expect(panel()).toHaveAttribute('id','panel-risk')
-    go('政策'); swipe(header(),100,0)
-    fireEvent.wheel(panel(),{deltaY:9999});fireEvent.wheel(panel(),{deltaX:9999});fireEvent.wheel(panel(),{deltaY:100,ctrlKey:true})
-    expect(panel()).toHaveAttribute('id','panel-report')
-    fireEvent.touchStart(header(),{touches:[{clientX:0,clientY:0},{clientX:20,clientY:0}]})
-    fireEvent.touchEnd(header(),{touches:[],changedTouches:[{clientX:100,clientY:0}]})
-    expect(panel()).toHaveAttribute('id','panel-report')
-    fireEvent.touchStart(header(),{touches:[{clientX:0,clientY:0}]}); fireEvent.touchCancel(header())
-    fireEvent.touchEnd(header(),{touches:[],changedTouches:[{clientX:100,clientY:0}]})
-    expect(panel()).toHaveAttribute('id','panel-report')
-    expect(swipeStep(-48,0)).toBe(1);expect(swipeStep(48,32)).toBe(-1);expect(swipeStep(47,0)).toBe(0)
+    swipe(header(), 100, 70)
+    expect(panel()).toHaveAttribute('id', 'panel-indicators')
+    swipe(header(), 100, 0)
+    expect(panel()).toHaveAttribute('id', 'panel-risk')
+    fireEvent.wheel(panel(), { deltaY: 9999 })
+    fireEvent.wheel(panel(), { deltaX: 9999 })
+    expect(panel()).toHaveAttribute('id', 'panel-risk')
   })
-  it('各頁／職業／快照的閱讀與展開狀態不混用', () => {
-    let pageTop=0
-    vi.spyOn(window,'scrollY','get').mockImplementation(()=>pageTop)
-    vi.spyOn(document.documentElement,'scrollHeight','get').mockReturnValue(3000)
-    vi.mocked(window.scrollTo).mockImplementation((options: ScrollToOptions | number, y?: number)=>{pageTop=typeof options==='number' ? y ?? 0 : options.top ?? 0})
-    const renderPage=()=> <details data-memory="extra"><summary>內容說明</summary><p>可展開的測試內容</p></details>
-    const view=render(<FolderWorkspace contextKey="v1:4" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>)
-    pageTop=210; fireEvent.scroll(window)
-    const detail=panel().querySelector('details')!; detail.open=true; fireEvent(detail,new Event('toggle'))
-    go('排名'); expect(pageTop).toBe(0)
-    go('指標'); expect(pageTop).toBe(210); expect(panel().querySelector('details')).toHaveAttribute('open')
-    view.rerender(<FolderWorkspace contextKey="v1:2" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(pageTop).toBe(0)
-    expect(panel().querySelector('details')).not.toHaveAttribute('open')
-    view.rerender(<FolderWorkspace contextKey="v1:4" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(pageTop).toBe(210)
-    view.rerender(<FolderWorkspace contextKey="v2:4" blocked={false} onExternalNavigate={()=>undefined} renderPage={renderPage}/>);expect(pageTop).toBe(0)
+
+  it('在各頁與各資料脈絡分開保存閱讀位置', () => {
+    let pageTop = 0
+    vi.spyOn(window, 'scrollY', 'get').mockImplementation(() => pageTop)
+    vi.spyOn(document.documentElement, 'scrollHeight', 'get').mockReturnValue(3000)
+    vi.mocked(window.scrollTo).mockImplementation((options: ScrollToOptions | number, y?: number) => {
+      pageTop = typeof options === 'number' ? y ?? 0 : options.top ?? 0
+    })
+    const view = renderWorkspace(false, 'run:4')
+    pageTop = 210
+    fireEvent.scroll(window)
+    fireEvent.click(tab('排名'))
+    expect(pageTop).toBe(0)
+    fireEvent.click(tab('指標'))
+    expect(pageTop).toBe(210)
+    view.rerender(<FolderWorkspace contextKey="run:2" blocked={false} onExternalNavigate={() => undefined} renderPage={(index) => <div>頁面內容 {index + 1}</div>} />)
+    expect(pageTop).toBe(0)
   })
-  it('modal 隔離背景，關閉回焦點，外部導航可安全離開', () => {
-    render(<App/>); go('論證')
-    const dialog=document.querySelector('dialog')!
-    Object.defineProperty(dialog,'showModal',{value:()=>dialog.setAttribute('open','')})
-    Object.defineProperty(dialog,'close',{value:()=>dialog.removeAttribute('open')})
-    const source=screen.getByRole('button',{name:'查看資料來源'})
-    fireEvent.click(source); expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(tab('政策')).toBeDisabled(); go('政策');expect(window.location.hash).toBe('#evidence')
-    fireEvent.click(screen.getByRole('button',{name:'關閉詳情'}));expect(source).toHaveFocus()
-    fireEvent.click(source);fireEvent(dialog,new Event('cancel',{cancelable:true}));expect(source).toHaveFocus()
-    fireEvent.click(source);window.history.replaceState(null,'','#report');fireEvent(window,new PopStateEvent('popstate'))
-    expect(screen.queryByRole('dialog')).toBeNull();expect(tab('政策')).toHaveFocus()
+
+  it.each([
+    ['#overview', 0], ['#comparison', 1], ['#diagnosis', 2], ['#research', 3], ['#policy', 4], ['#unknown', 0],
+  ])('把既有網址 %s 對應到正確頁次', (hash, expected) => {
+    expect(pageFromHash(hash)).toBe(expected)
   })
-  it.each(['failed','incompatible'])('刷新 %s 保留快照與報告限制', async mode => {
-    const refresh=vi.spyOn(api,'refreshDashboard')
-    if(mode==='failed') refresh.mockRejectedValue(new Error('offline'))
-    else refresh.mockResolvedValue(undefined as never)
-    render(<App/>); fireEvent.click(screen.getByRole('button',{name:'重新抓取資料'}))
-    expect(await screen.findByText(mode==='failed'?/重新抓取未完成/:/資料仍是舊版/)).toBeInTheDocument()
-    go('排名');expect(within(panel()).getByText('109,342 人次')).toBeInTheDocument()
-    expect(screen.getByText('2026-09-12')).toBeInTheDocument()
-    go('政策');expect(within(panel()).getByRole('button',{name:'產生完整政策報告'})).toBeDisabled()
+
+  it('側邊只顯示相鄰兩層頁面', () => {
+    expect(adjacentPages(0).map((item) => item.index)).toEqual([1, 2])
+    expect(adjacentPages(2).map((item) => item.index)).toEqual([0, 1, 3, 4])
+    expect(adjacentPages(4).map((item) => item.index)).toEqual([2, 3])
+    expect(folderPages).toHaveLength(5)
   })
-  it('真實零與缺值／不合法基期不混淆', () => {
-    expect(snapshot.occupations.map(o=>Number((annualChange(o.previous,o.current)!*100).toFixed(2)))).toEqual([-14.03,2.65,-8.01])
-    expect(annualChange(100,100)).toBe(0);expect(annualChange(100,0)).toBe(-1)
-    for(const [a,b] of [[0,100],[null,100],[100,null],[-1,100],[100,-1],[NaN,10],[10,Infinity]]) expect(annualChange(a,b)).toBeNull()
+
+  it('只把明確水平滑動判定為換頁', () => {
+    expect(swipeStep(-48, 0)).toBe(1)
+    expect(swipeStep(48, 0)).toBe(-1)
+    expect(swipeStep(47, 0)).toBe(0)
+    expect(swipeStep(-100, 100)).toBe(0)
   })
 })

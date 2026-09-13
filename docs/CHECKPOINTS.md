@@ -1,5 +1,92 @@
 # Development checkpoints
 
+## Authority Evidence Agent hardening — 2026-09-12
+
+### Plan checkpoint
+
+Status: PASS
+
+- Goal: make Section 04 evidence publication traceable to a real verification action, reject
+  redirected or index-only material that is not an eligible original source, expose bounded-run
+  evidence, and define safe cache boundaries for the dashboard and Agent workflow.
+- Assumptions: the existing in-process `AuthorityEvidenceAgent` remains the competition runtime;
+  the separate AgentCore/five-Lambda topology stays a future deployment option; the user's
+  uncommitted occupation-specific query change in `frontend/src/App.tsx` must be preserved.
+- Out of scope: deploying a new AgentCore runtime, adding CloudFront, caching positive model
+  verdicts, PDF extraction, authentication, or changing the employment-risk formula.
+- Acceptance: an inspect-only harness run cannot publish; redirect-to-news/index/private-host
+  evidence cannot reach Bedrock; malformed model verdicts fail closed; successful claims expose
+  final retrieval URL and content hash; Section 04 exposes bounded-run facts; GET/static responses
+  receive explicit cache policy while state-changing/Agent responses are `no-store`.
+- Verification: focused negative regression tests, complete backend lint/test suite, frontend tests,
+  TypeScript production build, and a final diff/architecture review.
+
+### Implementation checkpoint
+
+Status: PASS
+
+- Production evidence flow now enforces owner/content compatibility, trusted discovery provenance,
+  redirect-by-redirect and final-URL validation, strict model verdicts, non-negative passage
+  locators, source/passages budgets, a 90-second deadline, and fail-closed publication receipts.
+- Generic harness final packages are bound to the complete discovered candidate plus matching
+  retrieve, inspect, and supported claim/source/locator observations; fabricated excerpts,
+  substituted sources, duplicate call IDs, and early publication are rejected.
+- OpenAlex/Crossref results are DOI-normalized, interleaved with curated candidates, and clearly
+  labelled as discovery metadata rather than already-certified evidence.
+- Section 04 distinguishes A-grade candidates from claims that passed original-document
+  verification and displays final URL, content SHA-256, authority basis, run bounds, usage, and
+  duration. The existing occupation-specific query mapping was preserved.
+- Static/API cache headers, latest and content-hash ETags, collision-safe policy artifact paths,
+  and the detailed application/CloudFront/cache-key strategy are implemented or documented.
+
+### Test checkpoint
+
+Status: PASS
+
+- Backend: Python 3.12-targeted `ruff check .` passed; pytest reported `46 passed, 4 deselected`.
+  The two warnings are existing FastAPI/Starlette test-utility deprecations.
+- Frontend: TypeScript and Vite production build passed; Vitest reported `4 passed` across two
+  files.
+- Negative regressions cover unsupported/malformed/negative-index model verdicts, redirect to a
+  private endpoint before the second request, missing verification receipts, source/excerpt
+  substitution, premature publication, duplicate DOI results, and fresh/stale/versioned ETags.
+- GitHub Actions now runs both Python 3.12 backend lint/tests and Node 22 frontend build/tests.
+
+### Review checkpoint
+
+Status: PASS
+
+- Independent final review found and verified fixes for stale-dashboard 304 behavior, mutable
+  run-specific dashboards incorrectly marked immutable, CI test blind spots, negative passage
+  indices, source-ID substitution, and legacy claims without final-URL/hash receipts.
+- No P0/P1 or acceptance-blocking issue remains. Non-blocking hardening left for a later change:
+  stream source reads under a maximum byte budget, and pin DNS resolution/connection addresses for
+  DOI publisher redirects instead of only blocking literal private/local IP URLs.
+- AWS structured output was not enabled because support must be checked against the deployed model;
+  the current production path uses strict local Pydantic validation and fails closed instead.
+
+### Release checkpoint
+
+Status: PASS — ready for user review, not deployed
+
+- Final local lint, backend tests, frontend build/tests, and diff whitespace check passed.
+- No AWS stack, Lambda, CloudFront distribution, or live external-source smoke test was changed or
+  run in this task. Deployment and production AgentCore/CloudFront rollout remain explicit future
+  actions.
+
+## Evidence Agent integration checkpoint — 2026-09-12
+
+Status: PASS
+
+- Integrated PR #1's evidence contracts, source policy, publication gate, and Bedrock provider.
+- Replaced the static screenshot dashboard runtime with real dashboard, refresh, evidence-search, evidence-verification, and policy APIs.
+- Added original-page paragraph extraction so Bedrock can select evidence but cannot invent the quoted source text.
+- Added server-side enforcement that policy generation can use only the approved claim and exact excerpt from the same analysis run; search summaries are provenance only.
+- Added an explicit transformation-priority formula and kept unsupported Taiwan adoption data out of the numeric score.
+- Deployed to AWS and verified refresh `run_b1e4c2c65fe4`, live OpenAlex/Crossref discovery, one publication-gated ILO claim, and three non-fixture Nova Lite policy options in the browser with zero console errors or warnings.
+
+See `docs/DEMO_GAP_STATUS.md` for the full readiness and limitation list.
+
 ## Plan checkpoint — 2026-09-12
 
 Status: PASS
@@ -143,3 +230,54 @@ Status: PASS
 - Deployed dashboard published run `run_21b9b2c78d4b` and the source-transparency UI.
 - Production browser generated three policy cards after the hotfix without the prior 503.
 - Final diff check and staged secret scan passed before commit; generated build artifacts remain ignored.
+
+## Data-depth correction — 20–24 focus and processing ledger — 2026-09-12
+
+### Plan checkpoint
+
+Status: PASS
+
+- Goal: make the demo technically defensible to a data reviewer by focusing the indicator on 20–24-year-olds and replacing misleading cross-source aggregate row counts with per-source, unit-aware processing records.
+- Scope: DGBAS age-band output, indicator denominator, source provenance metadata, dashboard source and cleaning presentation, tests, AWS redeploy.
+- Non-goals: claiming causal AI displacement, inventing an industry-adoption value, replacing the source adapters, or adopting unverified draft formulas.
+- Acceptance: the primary metric and occupation shares use 20–24 only; 25–29 remains explicit context; every source states the fields used, policy rationale, limitation, and correctly named input/output units; no primary UI link opens a raw download/API endpoint.
+- Verification: parser and pipeline assertions, frontend content tests, lint/build/test, real refresh, deployed browser source-details check, policy regression check.
+
+### Implementation checkpoint
+
+Status: PASS
+
+- DGBAS column O (20–24) is now the only primary employment cohort and denominator; column Q (25–29) remains a separately named comparison field.
+- Source snapshots now declare fields used, why the source is needed, limitations, and unit-aware input/output labels. The dashboard links only to readable official source pages, while machine payloads stay in the private snapshot store.
+- The cleaning UI no longer displays or the API emits a cross-source raw/normalized sum. It presents one processing record per source plus comparable job-quality counts and crosswalk coverage.
+- The 104 snapshot hash now covers both the search response and all three parsed article payloads; `5 → 3` is explicitly described as content selection, not dirty-row removal.
+- The semantic change is recorded as transform version `2026-09-12.2`.
+
+### Test checkpoint
+
+Status: PASS
+
+- Backend `ruff check .`: passed; backend tests: `11 passed, 4 deselected` with two existing dependency deprecation warnings.
+- Frontend TypeScript/Vite build and Vitest after UI 1.0 integration: passed; `3 passed`.
+- Production refresh `run_1679245a9dd4`: `SUCCEEDED`; DGBAS, ILO, TaiwanJobs, and 104 each returned HTTP 200 from a fresh request and were correctly classified `UNCHANGED` by content hash.
+- Published primary cohort: 644,000 employed people aged 20–24; comparison cohort: 1,266,000 aged 25–29.
+- Production job audit: 1,000 API jobs → 998 valid jobs; 0 duplicates, 1 expired job, 1 missing title, 92.6% entry-level occupation-crosswalk coverage.
+
+### Review checkpoint
+
+Status: PASS
+
+- Verified the employment share and exposure load use only the 20–24 cohort; 25–29 is never hidden inside the primary denominator.
+- Verified the four source links resolve to readable DGBAS, ILO, TaiwanJobs, and 104 pages and no dashboard link targets XLSX, XML, or WordPress JSON endpoints.
+- Verified each displayed source count is generated by that refresh run and keeps its observation unit visible. No claim is made that ILO aggregation or 104 article selection equals row cleaning.
+- The defensible current index is employment concentration × ILO exposure, with live AI entry-job opportunity shown as a separate prioritization signal. Industry AI-adoption data is not yet available at the same occupation grain, so the product does not claim a completed `A × B × C × D` causal or skills-gap score.
+
+### Release checkpoint
+
+Status: PASS
+
+- CloudFormation stack `youthchpion-demo` is `UPDATE_COMPLETE` in `us-west-2`; public readiness is true.
+- Deployed dashboard: <https://trzx7426g1.execute-api.us-west-2.amazonaws.com>.
+- Final Bedrock regression on `run_1679245a9dd4`: `amazon.nova-lite-v1:0`, `is_fixture=false`, exactly three distinct policy options.
+- Deployed browser shows the 20–24 metric, source-specific processing ledger and transform `2026-09-12.2`; console has 0 errors and 0 warnings.
+- Integrated teammate UI 1.0 history and retained its reviewed Ministry of Labor snapshot helper and layout assets, but kept the production entry on the verified live-data Dashboard; the fixed snapshot and disabled policy report do not replace the working flow.

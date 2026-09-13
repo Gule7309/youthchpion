@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 
 from app.http import RetryingHttpClient
@@ -12,6 +13,28 @@ OPENALEX_URL = "https://api.openalex.org/works"
 CROSSREF_URL = "https://api.crossref.org/works"
 
 CURATED_EVIDENCE = [
+    {
+        "key": "taiwanjobs_ai_recruitment_survey_2024",
+        "title": "2024 AI世代的求才條件大調查",
+        "institution": "勞動部勞動力發展署／台灣就業通",
+        "published_at": "2024-12-02",
+        "evidence_type": "government labour-market survey",
+        "authority_tier": "A",
+        "method_summary": (
+            "台灣雇主與平台會員調查，533 份有效樣本；依公司規模與地區加權，"
+            "用於辨識 AI 時代的本地徵才與技能訊號。"
+        ),
+        "finding": (
+            "台灣雇主對 AI 時代人才條件與技能需求的調查，可補充官方就業結構的"
+            "本地需求脈絡。"
+        ),
+        "policy_relevance": ["台灣徵才脈絡", "AI技能需求", "本地試辦設計"],
+        "limitations": (
+            "便利抽樣且母體為平台會員；不是青年專屬樣本，也不能證明 AI 導致失業"
+            "或特定政策具有因果成效。"
+        ),
+        "url": "https://event.taiwanjobs.gov.tw/2024/survey/02/index.html",
+    },
     {
         "key": "ilo_refined_index_2025",
         "title": "Generative AI and Jobs: A Refined Global Index of Occupational Exposure",
@@ -30,6 +53,22 @@ CURATED_EVIDENCE = [
             "https://www.ilo.org/publications/generative-ai-and-jobs-refined-global-index-"
             "occupational-exposure"
         ),
+    },
+    {
+        "key": "ilo_worldbank_youth_almp_2026",
+        "title": "The impact of active labour market programmes for youth",
+        "institution": "ILO / World Bank",
+        "published_at": "2026",
+        "evidence_type": "evidence synthesis",
+        "authority_tier": "A",
+        "method_summary": "Evidence synthesis on active labour-market programme designs for youth.",
+        "finding": (
+            "Use the evidence base to compare training, employment services and bundled "
+            "interventions, with explicit evaluation rather than assuming one universal effect."
+        ),
+        "policy_relevance": ["青年就業方案", "試辦評估", "政策組合"],
+        "limitations": "Programme effects depend on design and local labour-market conditions.",
+        "url": "https://www.ilo.org/publications/impact-active-labour-market-programmes-youth",
     },
     {
         "key": "oecd_ai_skills_2024",
@@ -53,33 +92,17 @@ CURATED_EVIDENCE = [
         ),
     },
     {
-        "key": "ilo_worldbank_youth_almp_2026",
-        "title": "The impact of active labour market programmes for youth",
-        "institution": "ILO / World Bank",
-        "published_at": "2026",
-        "evidence_type": "evidence synthesis",
-        "authority_tier": "A",
-        "method_summary": "Evidence synthesis on active labour-market programme designs for youth.",
-        "finding": (
-            "Use the evidence base to compare training, employment services and bundled "
-            "interventions, with explicit evaluation rather than assuming one universal effect."
-        ),
-        "policy_relevance": ["青年就業方案", "試辦評估", "政策組合"],
-        "limitations": "Programme effects depend on design and local labour-market conditions.",
-        "url": "https://www.ilo.org/publications/impact-active-labour-market-programmes-youth",
-    },
-    {
-        "key": "moda_digital_access_2024",
-        "title": "113年數位近用調查報告",
+        "key": "moda_digital_access_2025",
+        "title": "114年數位近用調查報告",
         "institution": "數位發展部",
-        "published_at": "2024",
+        "published_at": "2026-01-13",
         "evidence_type": "government public-opinion survey",
         "authority_tier": "A",
         "method_summary": "全國數位近用調查；Dashboard 使用其中 20–29 歲就業網路族分組。",
         "finding": "青年對工作可能受自動化或 AI 取代的主觀感受可作政策溝通訊號。",
         "policy_relevance": ["青年民意", "風險溝通", "政策接受度"],
         "limitations": "主觀感受不等於實際職務暴露或失業機率。",
-        "url": "https://srda.sinica.edu.tw/file/e0362889-6adc-4857-9908-4319f33548a3",
+        "url": "https://moda.gov.tw/digital-affairs/digital-service/dv-survey/18672",
     },
     {
         "key": "104_aws_ai_jobs_2025",
@@ -110,18 +133,32 @@ def _abstract(inverted: dict[str, list[int]] | None) -> str | None:
     return " ".join(word for _, word in ordered)[:900]
 
 
+def _canonical_identity(item: EvidenceItem) -> str:
+    if item.doi:
+        doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", item.doi, flags=re.IGNORECASE)
+        return f"doi:{doi.strip().lower()}"
+    return f"title:{' '.join(item.title.casefold().split())}"
+
+
+def _interleave(*groups: list[EvidenceItem]):
+    for index in range(max((len(group) for group in groups), default=0)):
+        for group in groups:
+            if index < len(group):
+                yield group[index]
+
+
 def parse_openalex(body: bytes) -> list[EvidenceItem]:
     results = json.loads(body).get("results", [])
     items: list[EvidenceItem] = []
     now = datetime.now(UTC)
     for work in results:
-        url = work.get("doi") or work.get("id")
-        if not url:
+        doi = work.get("doi")
+        if not doi:
             continue
         source = ((work.get("primary_location") or {}).get("source") or {}).get("display_name")
         items.append(
             EvidenceItem(
-                evidence_id=_evidence_id("oa", str(url)),
+                evidence_id=_evidence_id("oa", str(doi)),
                 title=work.get("display_name") or "Untitled research",
                 institution=source or "OpenAlex indexed research",
                 authors=[
@@ -139,10 +176,11 @@ def parse_openalex(body: bytes) -> list[EvidenceItem]:
                     "OpenAlex metadata; inspect the full text before treating it as "
                     "causal evidence."
                 ),
-                doi=work.get("doi"),
-                url=url,
+                doi=doi,
+                url=doi,
                 retrieved_at=now,
                 freshness=FreshnessStatus.LIVE,
+                discovery_source="openalex",
             )
         )
     return items
@@ -182,6 +220,7 @@ def parse_crossref(body: bytes) -> list[EvidenceItem]:
                 url=url,
                 retrieved_at=now,
                 freshness=FreshnessStatus.LIVE,
+                discovery_source="crossref",
             )
         )
     return items
@@ -204,6 +243,7 @@ def curated_evidence() -> list[EvidenceItem]:
             url=item["url"],
             retrieved_at=now,
             freshness=FreshnessStatus.VERSIONED,
+            discovery_source="curated",
         )
         for item in CURATED_EVIDENCE
     ]
@@ -221,16 +261,16 @@ class EvidenceService:
         )
         crossref_call = self.http.get(CROSSREF_URL, params={"query": query, "rows": per_source})
         results = await asyncio.gather(openalex_call, crossref_call, return_exceptions=True)
-        merged: list[EvidenceItem] = curated_evidence()
+        groups = [curated_evidence()]
         if not isinstance(results[0], Exception):
-            merged.extend(parse_openalex(results[0].body))
+            groups.append(parse_openalex(results[0].body))
         if not isinstance(results[1], Exception):
-            merged.extend(parse_crossref(results[1].body))
+            groups.append(parse_crossref(results[1].body))
 
         deduped: list[EvidenceItem] = []
         seen: set[str] = set()
-        for item in merged:
-            identity = (item.doi or item.title).lower()
+        for item in _interleave(*groups):
+            identity = _canonical_identity(item)
             if identity in seen:
                 continue
             seen.add(identity)

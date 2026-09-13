@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ssl
+from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
 
@@ -32,7 +33,12 @@ class RetryingHttpClient:
         self.transport = transport
         self.verify = verify
 
-    async def get(self, url: str, params: dict[str, str | int] | None = None) -> HttpPayload:
+    async def get(
+        self,
+        url: str,
+        params: dict[str, str | int] | None = None,
+        redirect_validator: Callable[[str], None] | None = None,
+    ) -> HttpPayload:
         headers = {"User-Agent": "YouthChampion/0.1 (hackathon research dashboard)"}
         ssl_context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         last_error: Exception | None = None
@@ -40,12 +46,19 @@ class RetryingHttpClient:
             try:
                 async with httpx.AsyncClient(
                     timeout=settings.http_timeout_seconds,
-                    follow_redirects=True,
+                    follow_redirects=redirect_validator is None,
                     transport=self.transport,
                     headers=headers,
                     verify=ssl_context if self.verify else False,
                 ) as client:
                     response = await client.get(url, params=params)
+                    redirect_count = 0
+                    while redirect_validator is not None and response.is_redirect:
+                        redirect_count += 1
+                        if redirect_count > 8 or response.next_request is None:
+                            raise httpx.TooManyRedirects("evidence redirect limit exceeded")
+                        redirect_validator(str(response.next_request.url))
+                        response = await client.send(response.next_request)
                     response.raise_for_status()
                     return HttpPayload(
                         url=str(response.url),

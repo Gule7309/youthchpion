@@ -70,7 +70,7 @@ MVP 的正式資料流程必須包含真實外部查詢與排程更新。預先�
 - 本次 run 至少有台灣就業通與 104 兩個來源為 `LIVE`，而不是讀取 bundled fixture。
 - 主計總處下載端點成功取得真實 Excel，或清楚顯示本次未變更並沿用相同內容雜湊。
 - UI 顯示新的 `retrieved_at`、run ID、來源狀態與筆數。
-- 清洗頁可展示 raw 與 normalized 資料差異。
+- 清洗頁可按來源與相同觀測單位展示輸入、清洗／彙整後筆數；禁止把不同母體的列、職業觀測、職缺與文章加成一個總數。
 - 每一個指標都能回溯到來源 snapshot 與 transformation version。
 - Bedrock 回傳三個政策選項，且每項至少引用一筆存在於本次 evidence set 的證據。
 - 關閉 Bedrock 或外部來源時，畫面不崩潰，並顯示 `CACHED`／`STALE` 或清楚的錯誤狀態。
@@ -231,9 +231,9 @@ occupation_code × age_group × data_period
 
 青年年齡層：
 
-- `20-24`
-- `25-29`
-- Dashboard 可額外顯示合計 `20-29`
+- `20-24`：唯一主要政策分析族群。
+- `25-29`：獨立比較脈絡，不與主指標合併。
+- `20-29`：只可用於明確標示為 20–29 的版本化公眾調查，不作主要就業指標。
 
 主要職業分類使用台灣職業標準分類，再透過版本化 crosswalk 對應至 ISCO-08。地區與產業資料只作背景，不與職業資料直接相乘。
 
@@ -243,7 +243,7 @@ occupation_code × age_group × data_period
 
 ```text
 youth_employment_share
-= 某職業 20-29 歲就業人數 / 全部 20-29 歲就業人數
+= 某職業 20-24 歲就業人數 / 全部 20-24 歲就業人數
 ```
 
 來源：主計總處表 47。
@@ -403,18 +403,16 @@ LLM 可以解釋未知 header，但不得在未驗證時自動改寫正式 mappi
 
 ```json
 {
-  "raw_rows": 1000,
-  "normalized_rows": 884,
   "duplicates_removed": 71,
   "expired_removed": 23,
   "missing_occupation": 22,
   "crosswalk_coverage": 0.934,
   "unmatched_categories": ["..."],
-  "transform_version": "2026-09-12.1"
+  "transform_version": "2026-09-12.2"
 }
 ```
 
-前端需顯示至少三筆 before/after 範例與上述完整計數。
+前端需顯示至少三筆 before/after 轉換規則、每個來源的輸入／輸出計數與單位，以及職缺去重、過期排除、缺職稱、crosswalk coverage 等品質計數。只有觀測單位相同時才可將輸入與輸出視為清洗前後比較；例如 ILO `426 → 9` 是彙整、104 `5 → 3` 是內容解析選取，不得標示成刪除髒資料。
 
 ## 8. 權威證據即時檢索
 
@@ -687,11 +685,11 @@ latest/pointer.json
 
 ### 12.2 區塊一：青年 AI 轉型指標
 
-- KPI cards：青年失業背景、青年就業規模、AI 初階需求、公眾感受。
-- 青年 AI 轉型矩陣：X=暴露、Y=青年就業占比、氣泡=AI 初階職缺。
+- KPI cards：20–24 歲青年就業規模、AI 暴露負荷、公眾感受；25–29 歲只作比較脈絡。
+- 青年 AI 轉型矩陣：X=20–24 歲職業就業占比、Y=AI 暴露、氣泡=AI 初階職缺。
 - 職業 ranking table。
 - 點選職業後顯示三組原始數據與來源 freshness。
-- 「資料如何形成」drawer：raw/cleaned before-after、筆數、去重、join coverage、unmatched。
+- 「資料如何形成」區塊：分來源輸入／輸出單位、使用欄位、使用理由、限制、轉換規則、去重、join coverage、unmatched；不得顯示跨來源 raw/cleaned 總和。
 
 ### 12.3 區塊二：權威證據
 
@@ -1065,4 +1063,3 @@ source URL
 - 104 AI 人才與工作機會資料：https://blog.104.com.tw/104data-aws-ai/
 - 資策會 MIC 製造業 AI 導入調查：https://mic.iii.org.tw/news.aspx?List=30&id=710
 - 113 年數位近用調查：https://srda.sinica.edu.tw/file/e0362889-6adc-4857-9908-4319f33548a3
-

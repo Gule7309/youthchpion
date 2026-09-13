@@ -1,9 +1,8 @@
 .decision-summary { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; background:var(--surface-soft, #edf3f6); border-left:3px solid #104b63; border-radius:4px 12px 12px 4px; }
 .decision-summary p { margin:6px 0; max-width:64ch; }
-.policy-dashboard .decision-summary .policy-text-button { flex-shrink:0; width:auto; }
 .decision-summary > div { min-width:0; }
+.policy-dashboard .decision-summary .policy-text-button,.policy-dashboard .meeting-preview-controls .policy-text-button { flex-shrink:0; width:auto; }
 .folder-workspace[data-content-instant=true] *, .folder-workspace[data-content-instant=true] *::before { transition:none!important; animation:none!important; scroll-behavior:auto!important; }
-.policy-dashboard .meeting-preview-controls .policy-text-button { width:auto; }
 .decision-claim { padding:16px 0; border-bottom:1px solid var(--line, #d9e4ea); }
 .decision-claim:first-child { padding-top:0; }
 .decision-claim h3 { margin:8px 0; }
@@ -51,12 +50,12 @@
 .meeting-report table th:last-child { width:32%; }
 .meeting-report section { margin-top:24px; }
 .report-citation { border-top:1px solid #dce5eb; padding-top:12px; }
-.report-chart-row { display:grid; grid-template-columns:50px minmax(0,1fr) 115px; gap:12px; align-items:center; margin:12px 0; font-size:14px; }
+.report-chart-row { display:grid; grid-template-columns:90px minmax(0,1fr) 135px; gap:12px; align-items:center; margin:12px 0; font-size:14px; }
 .report-chart-row > div { height:12px; background:#edf5f9; }
 .report-chart-row i { display:block; height:100%; background:#104b63; border:1px solid #104b63; }
 [data-flow-id]:focus-visible,.meeting-preview h3:focus-visible { outline:2px solid #104b63; outline-offset:5px; border-radius:2px; }
 @media (max-width:1100px) { .policy-option-grid { grid-template-columns:1fr; }.decision-summary { display:block; } }
-@media (max-width:767px) { .decision-summary,.decision-relation { padding:14px; }.meeting-toolbar { align-items:stretch; flex-direction:column; }.meeting-report { padding:14px; }.decision-source dl,.report-metadata { grid-template-columns:1fr; gap:4px; }.report-metadata dd,.decision-source dd { margin-bottom:10px; }.report-chart-row { grid-template-columns:40px minmax(0,1fr) 100px; gap:8px; font-size:12px; } }
+@media (max-width:767px) { .decision-summary,.decision-relation { padding:14px; }.meeting-toolbar { align-items:stretch; flex-direction:column; }.meeting-report { padding:14px; }.decision-source dl,.report-metadata { grid-template-columns:1fr; gap:4px; }.report-metadata dd,.decision-source dd { margin-bottom:10px; }.report-chart-row { grid-template-columns:54px minmax(0,1fr) 105px; gap:8px; font-size:12px; } }
 @page { size:A4 portrait; margin:16mm; }
 @media print {
   body:has(.folder-panel.is-active .meeting-report) { background:white; }
