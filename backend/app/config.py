@@ -16,6 +16,9 @@ class Settings:
     source_max_retries: int
     bedrock_min_interval_ms: int
     latest_max_stale_hours: int
+    dgbas_microdata_local_path: Path | None
+    dgbas_microdata_s3_key: str | None
+    dgbas_microdata_period: int | None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -34,6 +37,17 @@ class Settings:
             source_max_retries=int(os.getenv("SOURCE_MAX_RETRIES", "2")),
             bedrock_min_interval_ms=int(os.getenv("BEDROCK_MIN_INTERVAL_MS", "1100")),
             latest_max_stale_hours=int(os.getenv("LATEST_MAX_STALE_HOURS", "168")),
+            dgbas_microdata_local_path=(
+                Path(value).resolve()
+                if (value := os.getenv("DGBAS_MICRODATA_LOCAL_PATH"))
+                else None
+            ),
+            dgbas_microdata_s3_key=os.getenv("DGBAS_MICRODATA_S3_KEY") or None,
+            dgbas_microdata_period=(
+                int(value)
+                if (value := os.getenv("DGBAS_MICRODATA_PERIOD"))
+                else None
+            ),
         )
 
 

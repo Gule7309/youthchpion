@@ -133,6 +133,51 @@ def test_dashboard_calculates_youth_share_from_youth_total() -> None:
         "taiwanjobs",
     }
 
+    results["dgbas_microdata_18_35"] = AdapterResult(
+        snapshot("dgbas_microdata_18_35", 2),
+        [
+            {
+                "code": "2",
+                "name": "專業",
+                "youth_employed": 80,
+                "youth_employed_18_24": 20,
+                "youth_employed_20_24": 15,
+                "youth_employed_25_29": 25,
+                "youth_employed_30_35": 35,
+                "youth_employed_18_35": 80,
+                "total_employed": 200,
+            },
+            {
+                "code": "4",
+                "name": "事務",
+                "youth_employed": 20,
+                "youth_employed_18_24": 5,
+                "youth_employed_20_24": 4,
+                "youth_employed_25_29": 5,
+                "youth_employed_30_35": 10,
+                "youth_employed_18_35": 20,
+                "total_employed": 100,
+            },
+        ],
+    )
+    exact = build_dashboard("run_exact_18_35", results, [])
+    exact_professional = next(
+        item for item in exact.occupation_signals if item.code == "2"
+    )
+
+    assert exact.summary_metrics["analysis_population_label"] == "18–35 歲"
+    assert exact.summary_metrics["analysis_population_exact"] is True
+    assert exact.summary_metrics["analysis_population_source_id"] == (
+        "dgbas_microdata_18_35"
+    )
+    assert exact.summary_metrics["youth_employed_18_35"] == 100
+    assert exact.summary_metrics["youth_employed_20_24"] == 19
+    assert exact_professional.youth_employed == 80
+    assert exact_professional.youth_employment_share == 0.4
+    assert exact_professional.occupation_share_of_youth == 0.8
+    assert "dgbas_microdata_18_35" in exact_professional.source_snapshot_ids
+    assert "dgbas_employment" not in exact_professional.source_snapshot_ids
+
 
 def test_dashboard_withholds_d_when_ai_positive_mapping_coverage_is_low() -> None:
     results = {

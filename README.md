@@ -10,6 +10,7 @@
 
 - Dashboard: <https://trzx7426g1.execute-api.us-west-2.amazonaws.com>
 - Readiness: <https://trzx7426g1.execute-api.us-west-2.amazonaws.com/ready>
+- 精確 18–35 歲資料需使用受授權個體資料；啟用方式見 [`docs/EXACT_18_35_SETUP.md`](docs/EXACT_18_35_SETUP.md)。
 
 部署在 AWS `us-west-2`，由 API Gateway、Lambda、私有且啟用版本控制的 S3 snapshot bucket、每日 EventBridge 排程與 Amazon Bedrock Nova Lite 組成。Dashboard API 對外提供 Demo；raw/normalized/published snapshots 不公開。
 

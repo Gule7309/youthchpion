@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
+from app.config import settings
 from app.evidence import EvidenceService
 from app.http import RetryingHttpClient
 from app.models import (
@@ -20,6 +21,7 @@ from app.models import (
 )
 from app.sources.base import AdapterResult
 from app.sources.dgbas import DgbasAdapter
+from app.sources.dgbas_microdata import DgbasMicrodataAdapter
 from app.sources.ilo import IloAdapter
 from app.sources.job104 import Job104Adapter
 from app.sources.moda_public_opinion import ModaPublicOpinionAdapter
@@ -85,6 +87,16 @@ def build_dashboard(
     evidence_preview: list,
 ) -> DashboardResponse:
     dgbas = results["dgbas_employment"]
+    microdata = results.get("dgbas_microdata_18_35")
+    exact_18_35 = bool(
+        microdata
+        and microdata.records
+        and microdata.snapshot.status != FreshnessStatus.FAILED
+    )
+    youth_source = microdata if exact_18_35 and microdata else dgbas
+    youth_source_id = youth_source.snapshot.source_id
+    youth_field = "youth_employed_18_35" if exact_18_35 else "youth_employed_20_24"
+    youth_label = "18–35 歲" if exact_18_35 else "20–24 歲"
     ilo = _combined_ilo(results["ilo_genai_exposure"].records)
     jobs = results.get("taiwanjobs")
     vacancy_result = results.get("mol_vacancy_history")
@@ -119,19 +131,36 @@ def build_dashboard(
         mapped_ai_entry_headcount / ai_entry_headcount if ai_entry_headcount else None
     )
 
-    youth_total = sum(int(record["youth_employed_20_24"]) for record in dgbas.records)
-    youth_total_25_29 = sum(int(record["youth_employed_25_29"]) for record in dgbas.records)
+    youth_total = sum(int(record[youth_field]) for record in youth_source.records)
+    youth_total_25_29 = sum(
+        int(record.get("youth_employed_25_29") or 0) for record in youth_source.records
+    )
+    youth_total_18_24 = (
+        sum(int(record.get("youth_employed_18_24") or 0) for record in youth_source.records)
+        if exact_18_35
+        else None
+    )
+    youth_total_20_24 = (
+        sum(int(record.get("youth_employed_20_24") or 0) for record in youth_source.records)
+        if exact_18_35
+        else youth_total
+    )
+    youth_total_30_35 = (
+        sum(int(record.get("youth_employed_30_35") or 0) for record in youth_source.records)
+        if exact_18_35
+        else None
+    )
     intermediate: list[dict[str, Any]] = []
-    for record in dgbas.records:
+    for record in youth_source.records:
         code = str(record["code"])
         exposure = ilo.get(code)
         if not exposure:
             continue
         occupation_share_of_youth = (
-            record["youth_employed_20_24"] / youth_total if youth_total else None
+            record[youth_field] / youth_total if youth_total else None
         )
         youth_share_within_occupation = (
-            record["youth_employed_20_24"] / record["total_employed"]
+            record[youth_field] / record["total_employed"]
             if record.get("total_employed")
             else None
         )
@@ -223,7 +252,7 @@ def build_dashboard(
             confidence_reasons.append(
                 f"D 未通過品質閘門：{row['ai_entry_opportunity_status']}"
             )
-        snapshot_ids = ["dgbas_employment", "ilo_genai_exposure"]
+        snapshot_ids = [youth_source_id, "ilo_genai_exposure"]
         if vacancy_result:
             snapshot_ids.append("mol_vacancy_history")
         if jobs:
@@ -244,7 +273,11 @@ def build_dashboard(
                 code=row["code"],
                 name=row["name"],
                 youth_employed=row["youth_employed"],
-                youth_employed_25_29=row["youth_employed_25_29"],
+                youth_employed_18_24=row.get("youth_employed_18_24"),
+                youth_employed_20_24=row.get("youth_employed_20_24"),
+                youth_employed_25_29=row.get("youth_employed_25_29"),
+                youth_employed_30_35=row.get("youth_employed_30_35"),
+                youth_employed_18_35=row.get("youth_employed_18_35"),
                 youth_employment_share=(
                     round(row["youth_employment_share"], 4)
                     if row["youth_employment_share"] is not None
@@ -316,8 +349,22 @@ def build_dashboard(
         else None,
         unmatched_categories=audit.get("unmatched_categories", []),
         before_after=[
-            {"before": "DGBAS value (thousand people)", "after": "integer person count"},
-            {"before": "DGBAS all published age columns", "after": "20–24 primary; 25–29 context"},
+            {
+                "before": "DGBAS monthly expansion weights"
+                if exact_18_35
+                else "DGBAS value (thousand people)",
+                "after": "weighted annual-average person count"
+                if exact_18_35
+                else "integer person count",
+            },
+            {
+                "before": "DGBAS person-level a3 age, a22 occupation and expansion weight"
+                if exact_18_35
+                else "DGBAS all published age columns",
+                "after": "exact 18–35 weighted occupation aggregates"
+                if exact_18_35
+                else "20–24 primary; 25–29 context",
+            },
             {"before": "ILO detailed occupations", "after": "ISCO major-group averages"},
             {"before": "TaiwanJobs non-standard XML", "after": "parseable normalized fields"},
             {"before": "TaiwanJobs proprietary category", "after": "versioned occupation group"},
@@ -345,9 +392,15 @@ def build_dashboard(
         overall_status=FreshnessStatus.STALE if partial else FreshnessStatus.LIVE,
         sources=source_snapshots,
         summary_metrics={
-            "youth_employed_20_24": youth_total,
+            "youth_employed_20_24": youth_total_20_24,
             "youth_employed_25_29": youth_total_25_29,
-            "youth_employed_20_29": youth_total + youth_total_25_29,
+            "youth_employed_20_29": youth_total_20_24 + youth_total_25_29,
+            "youth_employed_18_24": youth_total_18_24,
+            "youth_employed_30_35": youth_total_30_35,
+            "youth_employed_18_35": youth_total if exact_18_35 else None,
+            "analysis_population_label": youth_label,
+            "analysis_population_exact": exact_18_35,
+            "analysis_population_source_id": youth_source_id,
             "youth_ai_exposure_load": round(sum(row["load"] for row in intermediate), 4),
             "live_entry_jobs": sum(row["total_entry_jobs"] for row in intermediate),
             "ai_subsample_mapping_coverage": (
@@ -364,7 +417,7 @@ def build_dashboard(
                 "priority_score_p33": round(priority_medium, 1),
             },
             "metric_warning": (
-                "目前只發布實驗性結構暴露：A=職業內 20–24 歲青年占比，"
+                f"目前只發布實驗性結構暴露：A=職業內 {youth_label}青年占比，"
                 "B=ILO 職業任務暴露 proxy。P=該職業占全部青年就業比率、"
                 "H=勞動部官方求才年減形成的獨立招募弱化訊號、D=AI 初階職缺機會率，"
                 "均分開顯示。C 尚無可靠職業量化值，所以完整 Risk 為 null。"
@@ -372,7 +425,7 @@ def build_dashboard(
             "score_formula": "100 × sqrt(A × B); experimental structural exposure only",
             "risk_formula_candidate": "Risk requires calibrated A, B, C and independent H",
             "risk_status": "MISSING_C",
-            "score_version": "2026-09-12.3",
+            "score_version": "2026-09-13.1",
         },
         occupation_signals=signals,
         public_opinion=public_opinion,
@@ -423,6 +476,20 @@ class PipelineService:
             VacancyHistoryAdapter(RetryingHttpClient()),
             ModaPublicOpinionAdapter(RetryingHttpClient()),
         ]
+        microdata_location_configured = bool(
+            settings.dgbas_microdata_local_path
+            or (settings.data_bucket and settings.dgbas_microdata_s3_key)
+        )
+        if settings.dgbas_microdata_period and microdata_location_configured:
+            adapters.insert(
+                1,
+                DgbasMicrodataAdapter(
+                    data_period=settings.dgbas_microdata_period,
+                    local_path=settings.dgbas_microdata_local_path,
+                    bucket=settings.data_bucket,
+                    s3_key=settings.dgbas_microdata_s3_key,
+                ),
+            )
         fetched = await asyncio.gather(
             *(adapter.fetch() for adapter in adapters), return_exceptions=True
         )

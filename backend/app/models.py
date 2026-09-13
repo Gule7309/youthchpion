@@ -82,7 +82,11 @@ class OccupationSignal(BaseModel):
     code: str
     name: str
     youth_employed: int | None = None
+    youth_employed_18_24: int | None = None
+    youth_employed_20_24: int | None = None
     youth_employed_25_29: int | None = None
+    youth_employed_30_35: int | None = None
+    youth_employed_18_35: int | None = None
     # A: youth employed in this occupation / all employed people in this occupation.
     youth_employment_share: float | None = None
     # P: youth employed in this occupation / all youth employed across occupations.

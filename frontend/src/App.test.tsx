@@ -116,6 +116,30 @@ describe('App', () => {
     expect(screen.queryByRole('link', { name: /原始/ })).not.toBeInTheDocument()
   })
 
+  it('shows exact 18–35 only when the backend snapshot declares it', async () => {
+    const dashboard = structuredClone(dashboardFixture)
+    dashboard.sources.push({
+      ...dashboard.sources[0],
+      source_id: 'dgbas_microdata_18_35',
+      dataset_name: '主計總處人力資源調查個體資料（加權彙總）',
+    })
+    dashboard.summary_metrics = {
+      ...dashboard.summary_metrics,
+      analysis_population_label: '18–35 歲',
+      analysis_population_exact: true,
+      analysis_population_source_id: 'dgbas_microdata_18_35',
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => dashboard,
+    }))
+
+    render(<App />)
+
+    expect(await screen.findByText(/精確個體資料加權 18–35 歲/)).toBeInTheDocument()
+    expect(screen.getByText(/該職業內 18–35 歲占比/)).toBeInTheDocument()
+  })
+
   it('runs the authority agent before enabling policy generation', async () => {
     const fetch = vi.fn().mockImplementation((url: string) => {
       if (url.endsWith('/v1/evidence/verify')) return Promise.resolve({

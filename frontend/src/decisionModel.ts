@@ -111,6 +111,7 @@ export const claimLabels: Record<Claim['kind'], string> = {
 
 const SOURCE_INSTITUTIONS: Record<string, string> = {
   dgbas_employment: '行政院主計總處',
+  dgbas_microdata_18_35: '行政院主計總處／中央研究院 SRDA',
   ilo_genai_exposure: 'International Labour Organization',
   taiwanjobs: '台灣就業通／勞動部',
   job104_research: '104 人力銀行',
@@ -371,6 +372,9 @@ export function analysisFromDashboard({
   policy: PolicyResponse | null
 }): Analysis {
   const sourceMap = new Map(dashboard.sources.map((source) => [source.source_id, source]))
+  const youthLabel = String(dashboard.summary_metrics.analysis_population_label ?? '20–24 歲')
+  const youthSourceId = String(dashboard.summary_metrics.analysis_population_source_id ?? 'dgbas_employment')
+  const youthExact = dashboard.summary_metrics.analysis_population_exact === true
   const sourceEvidenceItems = dashboard.sources.map(sourceEvidence)
   const researchItems = [...evidenceItems]
   if (verification) {
@@ -401,7 +405,7 @@ export function analysisFromDashboard({
   }
 
   const indicators = [
-    buildIndicator(sourceMap, 'A', '職業內 20–24 歲占比', occupation.youth_employment_share == null ? undefined : occupation.youth_employment_share * 100, '%', ['dgbas_employment'], 'exact', occupation.data_confidence ?? null),
+    buildIndicator(sourceMap, 'A', `職業內 ${youthLabel}占比`, occupation.youth_employment_share == null ? undefined : occupation.youth_employment_share * 100, '%', [youthSourceId], 'exact', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'B', 'ILO 生成式 AI 職務暴露', occupation.exposure_score, '0–1', ['ilo_genai_exposure'], 'proxy', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'C', '台灣產業 AI 導入', occupation.industry_adoption_score == null ? undefined : occupation.industry_adoption_score * 100, '%', ['job104_research'], 'proxy', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'H', '官方求才弱化', occupation.recruitment_weakening == null ? undefined : occupation.recruitment_weakening * 100, '%', ['mol_vacancy_history'], 'exact', occupation.data_confidence ?? null),
@@ -410,8 +414,8 @@ export function analysisFromDashboard({
     buildIndicator(sourceMap, 'vacancy-current', '官方本期求才', occupation.recruitment_vacancies_current, '人次', ['mol_vacancy_history'], 'exact', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'jobs-total', '即時初階職缺樣本', occupation.total_entry_jobs, '個職缺', ['taiwanjobs'], 'estimated', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'jobs-ai', 'AI 相關初階職缺樣本', occupation.ai_entry_jobs, '個職缺', ['taiwanjobs'], 'estimated', occupation.data_confidence ?? null),
-    buildIndicator(sourceMap, 'structural', '實驗性結構暴露', occupation.structural_exposure_score, '分', ['dgbas_employment', 'ilo_genai_exposure'], 'proxy', occupation.data_confidence ?? null),
-    buildIndicator(sourceMap, 'Risk', '完整風險', occupation.complete_risk_score, '分', ['dgbas_employment', 'ilo_genai_exposure', 'job104_research', 'mol_vacancy_history'], 'proxy', occupation.data_confidence ?? null),
+    buildIndicator(sourceMap, 'structural', '實驗性結構暴露', occupation.structural_exposure_score, '分', [youthSourceId, 'ilo_genai_exposure'], 'proxy', occupation.data_confidence ?? null),
+    buildIndicator(sourceMap, 'Risk', '完整風險', occupation.complete_risk_score, '分', [youthSourceId, 'ilo_genai_exposure', 'job104_research', 'mol_vacancy_history'], 'proxy', occupation.data_confidence ?? null),
   ]
 
   const claims: Claim[] = []
@@ -424,7 +428,7 @@ export function analysisFromDashboard({
       verification: 'verified',
       indicatorRefs: ['A', 'B', 'structural'],
       relations: [
-        relation('dgbas_employment', '主計總處提供職業內 20–24 歲就業結構。'),
+        relation(youthSourceId, `主計總處提供職業內 ${youthLabel}就業結構。`),
         relation('ilo_genai_exposure', 'ILO 任務暴露資料提供跨職業可比較的 B proxy。'),
       ],
     })
@@ -519,8 +523,10 @@ export function analysisFromDashboard({
     id: [dashboard.analysis_run_id, verification?.verification_id ?? 'no-verification', policy?.generated_at ?? 'no-policy'].join(':'),
     modelVersion: scoreVersion,
     occupation: { code: occupation.code, name: occupation.name, classificationVersion: null },
-    targetPopulation: '20–24 歲青年',
-    actualPopulation: '20–24 歲就業結構；求才與即時職缺為全年齡／平台樣本',
+    targetPopulation: '18–35 歲青年',
+    actualPopulation: youthExact
+      ? '18–35 歲精確年齡個體資料加權就業結構；求才與即時職缺為全年齡／平台樣本'
+      : `${youthLabel}就業結構；求才與即時職缺為全年齡／平台樣本`,
     geography: '臺灣全國職業大類',
     periods,
     checkedAt: dashboard.published_at,
