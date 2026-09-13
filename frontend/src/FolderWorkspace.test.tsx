@@ -36,7 +36,8 @@ afterEach(() => {
 describe('五頁檔案夾工作區', () => {
   it('固定提供五個可存取分頁，預設顯示指標頁', () => {
     renderWorkspace()
-    expect(screen.getAllByRole('tab').map((item) => item.textContent)).toEqual(['指標', '風險', '診斷', '論證', '報告'])
+    expect(document.querySelector('.folder-workspace')).toHaveClass('is-document')
+    expect(screen.getAllByRole('tab').map((item) => item.textContent)).toEqual(['指標', '比較', '診斷', '論證', '政策'])
     expect(tab('指標')).toHaveAttribute('aria-selected', 'true')
     expect(panel()).toHaveAttribute('id', 'panel-indicators')
     expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
@@ -44,7 +45,7 @@ describe('五頁檔案夾工作區', () => {
 
   it('用分頁與側邊檔案夾切換內容並更新 hash', () => {
     renderWorkspace()
-    fireEvent.click(tab('報告'))
+    fireEvent.click(tab('政策'))
     expect(panel()).toHaveAttribute('id', 'panel-report')
     expect(window.location.hash).toBe('#report')
     fireEvent.click(screen.getByRole('button', { name: '開啟診斷，第 3 頁，共 5 頁' }))
@@ -56,10 +57,10 @@ describe('五頁檔案夾工作區', () => {
     renderWorkspace()
     act(() => tab('指標').focus())
     fireEvent.keyDown(tab('指標'), { key: 'End' })
-    expect(tab('報告')).toHaveFocus()
+    expect(tab('政策')).toHaveFocus()
     expect(tab('指標')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(tab('報告'))
-    expect(tab('報告')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(tab('政策'))
+    expect(tab('政策')).toHaveAttribute('aria-selected', 'true')
     fireEvent.click(screen.getByRole('button', { name: '跳至目前頁內容' }))
     expect(panel()).toHaveFocus()
   })
@@ -82,18 +83,21 @@ describe('五頁檔案夾工作區', () => {
   })
 
   it('在各頁與各資料脈絡分開保存閱讀位置', () => {
+    let pageTop = 0
+    vi.spyOn(window, 'scrollY', 'get').mockImplementation(() => pageTop)
+    vi.spyOn(document.documentElement, 'scrollHeight', 'get').mockReturnValue(3000)
+    vi.mocked(window.scrollTo).mockImplementation((options: ScrollToOptions | number, y?: number) => {
+      pageTop = typeof options === 'number' ? y ?? 0 : options.top ?? 0
+    })
     const view = renderWorkspace(false, 'run:4')
-    const reader = () => panel().querySelector('.folder-reader') as HTMLDivElement
-    Object.defineProperty(reader(), 'scrollHeight', { configurable: true, value: 1200 })
-    Object.defineProperty(reader(), 'clientHeight', { configurable: true, value: 300 })
-    reader().scrollTop = 210
-    fireEvent.scroll(reader())
-    fireEvent.click(tab('風險'))
-    expect(reader().scrollTop).toBe(0)
+    pageTop = 210
+    fireEvent.scroll(window)
+    fireEvent.click(tab('比較'))
+    expect(pageTop).toBe(0)
     fireEvent.click(tab('指標'))
-    expect(reader().scrollTop).toBe(210)
+    expect(pageTop).toBe(210)
     view.rerender(<FolderWorkspace contextKey="run:2" blocked={false} onExternalNavigate={() => undefined} renderPage={(index) => <div>頁面內容 {index + 1}</div>} />)
-    expect(reader().scrollTop).toBe(0)
+    expect(pageTop).toBe(0)
   })
 
   it.each([

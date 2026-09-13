@@ -83,9 +83,9 @@ describe('App', () => {
         }],
         public_opinion: [{
           label: '20–29歲就業網路族認為工作可能被自動化／AI取代',
-          value: 39.5,
+          value: 35.0,
           unit: '%',
-          survey_year: 2024,
+          survey_year: 2025,
         }],
         industry_context: [],
         cleaning_summary: {
@@ -136,7 +136,7 @@ describe('App', () => {
           analysis_run_id: 'run_test', published_at: '2026-09-12T07:00:00Z', overall_status: 'LIVE', sources: [], summary_metrics: {},
           occupation_signals: [{ code: '4', name: '事務支援人員', youth_employed: 10, youth_employment_share: 1, occupation_share_of_youth: 1, exposure_level: 'high', exposure_score: 0.5, ai_entry_jobs: 0, total_entry_jobs: 1, ai_entry_opportunity_rate: 0, recruitment_weakening: 0.5, recruitment_yoy_change: -0.1, transformation_priority_score: 70.7, structural_exposure_score: 70.7, complete_risk_score: null, score_status: 'MISSING_C', score_formula: 'formula', priority: 'high', source_snapshot_ids: [] }],
           public_opinion: [], industry_context: [], cleaning_summary: { duplicates_removed: 0, expired_removed: 0, missing_occupation: 0, unmatched_categories: [], transform_version: 'test', before_after: [] },
-          evidence_preview: [{ evidence_id: 'ev_1', title: 'ILO report', institution: 'ILO', authors: [], published_at: '2025', evidence_type: 'international report', authority_tier: 'A', method_summary: 'Task analysis', finding: 'AI changes tasks', limitations: 'Not causal', url: 'https://ilo.org/report', retrieved_at: '2026-09-12T07:00:00Z', freshness: 'VERSIONED' }],
+          evidence_preview: [{ evidence_id: 'ev_1', title: 'ILO report', institution: 'ILO', authors: [], published_at: '2025', evidence_type: 'international report', authority_tier: 'A', method_summary: 'Task analysis', finding: '<jats:p>AI changes tasks</jats:p>', limitations: 'Not causal', url: 'https://ilo.org/report', retrieved_at: '2026-09-12T07:00:00Z', freshness: 'VERSIONED' }],
         }),
       })
     })
@@ -144,13 +144,15 @@ describe('App', () => {
 
     render(<App />)
     fireEvent.click(await screen.findByRole('tab', { name: '論證' }))
+    expect(screen.getByText('AI changes tasks')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('<jats:p>')
     fireEvent.click(screen.getByRole('button', { name: '執行權威證據 Agent' }))
 
     expect(await screen.findByText(/已通過原文認證：AI 主要改變工作任務。/)).toBeInTheDocument()
     expect(screen.getByText(/SHA-256 abcdef123456/)).toBeInTheDocument()
     expect(screen.getByText(/Harness test-v1/)).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith('/v1/evidence/verify', expect.objectContaining({ method: 'POST' }))
-    fireEvent.click(screen.getByRole('tab', { name: '報告' }))
+    fireEvent.click(screen.getByRole('tab', { name: '政策' }))
     expect(screen.getByRole('button', { name: '產生三個政策選項' })).toBeEnabled()
   })
 })

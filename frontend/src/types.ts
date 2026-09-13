@@ -38,6 +38,8 @@ export interface OccupationSignal {
   ai_entry_jobs: number
   total_entry_jobs: number
   ai_entry_opportunity_rate?: number
+  ai_entry_opportunity_status?: 'READY_EXPERIMENTAL' | 'LOW_SAMPLE' | 'LOW_AI_MAPPING_COVERAGE' | 'NO_DENOMINATOR'
+  ai_subsample_mapping_coverage?: number
   recruitment_vacancies_current?: number
   recruitment_vacancies_previous?: number
   recruitment_yoy_change?: number
@@ -52,6 +54,8 @@ export interface OccupationSignal {
   complete_risk_score?: number
   score_status?: 'EXPERIMENTAL' | 'MISSING_C' | 'INSUFFICIENT_DATA'
   score_formula: string
+  data_confidence?: 'MEDIUM' | 'LOW'
+  data_confidence_reasons?: string[]
   priority: 'high' | 'medium' | 'monitor'
   source_snapshot_ids: string[]
   source_snapshot_refs?: Array<{

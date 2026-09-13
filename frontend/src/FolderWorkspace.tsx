@@ -3,10 +3,10 @@ import { Icon, type IconName } from './Icon'
 
 export const folderPages = [
   { id: 'indicators', label: '指標', icon: 'formula', description: '理解模型，看見每一項訊號' },
-  { id: 'risk', label: '風險', icon: 'chart', description: '比較職業，找到值得關注的變化' },
+  { id: 'risk', label: '比較', icon: 'chart', description: '比較職業，找到值得關注的變化' },
   { id: 'diagnosis', label: '診斷', icon: 'sparkles', description: '拆解原因，也保留其他可能的解釋' },
   { id: 'evidence', label: '論證', icon: 'book', description: '回到資料與研究，檢視判斷的依據' },
-  { id: 'report', label: '報告', icon: 'report', description: '從證據出發，評估政策方向' },
+  { id: 'report', label: '政策', icon: 'report', description: '從證據出發，評估政策方向' },
 ] as const satisfies readonly { id: string; label: string; icon: IconName; description: string }[]
 const aliases: Record<string, string> = { overview: 'indicators', 'dashboard-content': 'indicators', comparison: 'risk', research: 'evidence', policy: 'report' }
 export function pageFromHash(hash: string) {
@@ -17,7 +17,11 @@ export function adjacentPages(index: number) {
   return folderPages.map((page, i) => ({ ...page, index: i, distance: Math.abs(i-index) })).filter(page => page.distance > 0 && page.distance <= 2)
 }
 export function swipeStep(dx: number, dy: number) { return Math.abs(dx) >= 48 && Math.abs(dx) >= Math.abs(dy) * 1.5 ? (dx < 0 ? 1 : -1) : 0 }
-export type WorkspaceHandle = { saveReading: () => void; focusCurrent: () => void }
+export type WorkspaceHandle = {
+  saveReading: () => void
+  focusCurrent: () => void
+  navigate: (index: number, target: string, context: string, instant?: boolean) => void
+}
 export const motionPreferenceKey = 'youthlm.folder-motion'
 function savedReducedMotion() {
   try { return window.localStorage.getItem(motionPreferenceKey) === 'reduced' }
@@ -31,8 +35,15 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
   const [focusIndex, setFocusIndex] = useState(active)
   const [outgoing, setOutgoing] = useState<number | null>(null)
   const [reduced, setReduced] = useState(savedReducedMotion)
-  const [documentMode, setDocumentMode] = useState(false)
   const [announcement, setAnnouncement] = useState('')
+  const [contentInstant, setContentInstant] = useState(false)
+  const [destination, setDestination] = useState<{
+    index: number
+    target: string
+    context: string
+    serial: number
+  } | null>(null)
+  const destinationSerial = useRef(0)
   const current = useRef(active)
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
   const panels = useRef<(HTMLDivElement | null)[]>([])
@@ -46,7 +57,6 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
   const memory = useRef(new Map<string, Reading>())
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const revision = useRef(0)
-  const mode = useRef(false)
   const layoutViewport = useRef({ width: window.innerWidth, height: window.innerHeight })
   const live = useRef({ blocked, onExternalNavigate, contextKey, reduced })
   live.current = { blocked, onExternalNavigate, contextKey, reduced }
@@ -59,7 +69,7 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     if (!reader) return
     const prior = memory.current.get(keyFor(i))
     memory.current.set(keyFor(i), {
-      top: mode.current ? (i === current.current ? Math.max(0, -reader.getBoundingClientRect().top) : prior?.top ?? 0) : reader.scrollTop,
+      top: i === current.current ? window.scrollY : prior?.top ?? 0,
       expanded: [...reader.querySelectorAll<HTMLDetailsElement>('details[data-memory][open]')].map(el => el.dataset.memory!),
     })
   }
@@ -68,15 +78,25 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     if (!reader) return
     const state = memory.current.get(keyFor(i))
     for (const detail of reader.querySelectorAll<HTMLDetailsElement>('details[data-memory]')) detail.open = state?.expanded.includes(detail.dataset.memory!) ?? false
-    if (mode.current) {
-      const target = state?.top ? reader.getBoundingClientRect().top + window.scrollY + state.top : 0
-      window.scrollTo({ top: Math.min(target, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)), behavior: 'instant' })
-    }
-    else reader.scrollTop = Math.min(state?.top ?? 0, Math.max(0, reader.scrollHeight-reader.clientHeight))
+    window.scrollTo({
+      top: Math.min(state?.top ?? 0, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)),
+      behavior: 'instant',
+    })
   }
   function focusCurrent() { tabs.current[current.current]?.focus({ preventScroll: true }) }
-  useImperativeHandle(ref, () => ({ saveReading: () => remember(), focusCurrent }))
+  useImperativeHandle(ref, () => ({
+    saveReading: () => remember(),
+    focusCurrent,
+    navigate(index, target, context, instant = false) {
+      if (live.current.blocked || context !== live.current.contextKey
+        || index < 0 || index >= folderPages.length) return
+      const noMovement = instant || Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+      select(index, 'content', noMovement)
+      setDestination({ index, target, context, serial: ++destinationSerial.current })
+    },
+  }))
   function settle() { revision.current++; clearTimeout(timer.current); setOutgoing(null) }
+  // Decorative shells keep their identity while text stays in the accessible panel.
   function positionShells(instant = false) {
     const host = stage.current
     const main = windowRef.current
@@ -116,8 +136,14 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     geometryReady.current = true
     host.dataset.shellsReady = 'true'
   }
-  function select(index: number, source: 'tab' | 'side' | 'swipe' | 'history' = 'tab') {
+  function select(
+    index: number,
+    source: 'tab' | 'side' | 'swipe' | 'history' | 'content' = 'tab',
+    instant = false,
+  ) {
     if (index < 0 || index >= folderPages.length || (live.current.blocked && source !== 'history')) return
+    setDestination(null)
+    setContentInstant(instant)
     if (source === 'history') { pendingFocus.current = true; live.current.onExternalNavigate() }
     if (index === current.current) return
     remember()
@@ -127,8 +153,12 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     setActive(index); setFocusIndex(index)
     clearTimeout(timer.current)
     const version = ++revision.current
-    setOutgoing(live.current.reduced ? null : old)
-    if (!live.current.reduced) timer.current = setTimeout(() => { if (version === revision.current) setOutgoing(null) }, 460)
+    setOutgoing(live.current.reduced || instant ? null : old)
+    if (!live.current.reduced && !instant) {
+      timer.current = setTimeout(() => {
+        if (version === revision.current) setOutgoing(null)
+      }, 460)
+    }
     if (source !== 'history') window.history.pushState(null, '', `#${folderPages[index].id}`)
     if (mustFocus) { pendingFocus.current = true; tabs.current[index]?.focus({ preventScroll: true }) }
     if (source === 'swipe') setAnnouncement(`${folderPages[index].label}，第 ${index + 1} 頁，共 5 頁`)
@@ -153,35 +183,35 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     try { window.localStorage.setItem(motionPreferenceKey, next ? 'reduced' : 'full') }
     catch { /* Storage may be blocked; the in-memory choice still works. */ }
   }
-  useLayoutEffect(() => { restore() }, [active, contextKey, documentMode])
-  useLayoutEffect(() => { positionShells() }, [active, documentMode, contextKey, reduced])
+  useLayoutEffect(() => { restore() }, [active, contextKey])
+  useLayoutEffect(() => { positionShells() }, [active, contextKey, reduced])
   useLayoutEffect(() => {
     if (!blocked && pendingFocus.current) { pendingFocus.current = false; focusCurrent() }
   }, [active, blocked])
   useLayoutEffect(() => {
+    if (!destination || blocked || destination.context !== contextKey || destination.index !== active) return
+    const panel = panels.current[active]
+    const target = [...(panel?.querySelectorAll<HTMLElement>('[data-flow-id]') ?? [])]
+      .find((element) => element.dataset.flowId === destination.target)
+    const focus = target ?? panel
+    if (!target) setAnnouncement('此內容目前不可用，已回到對應分頁。')
+    focus?.focus({ preventScroll: true })
+    focus?.scrollIntoView?.({ block: 'nearest', behavior: 'instant' })
+    remember()
+    setDestination(null)
+  }, [destination, active, contextKey, blocked])
+  useLayoutEffect(() => {
     const resize = () => {
       if (!stage.current) return
-      const top = stage.current.getBoundingClientRect().top + window.scrollY
-      const app = stage.current.closest('.folder-app')
-      const panel = panels.current[current.current]
-      const header = panel?.querySelector('.folder-title')
-      const bottomPadding = app ? parseFloat(getComputedStyle(app).paddingBottom) || 0 : 0
-      const panelPadding = panel ? parseFloat(getComputedStyle(panel).paddingBottom) || 0 : 0
-      const readerSpace = window.innerHeight - top - bottomPadding - panelPadding
-        - (caption.current?.getBoundingClientRect().height ?? 0)
-        - (header?.getBoundingClientRect().height ?? 0)
-      const nextMode = readerSpace < 280
       layoutViewport.current = { width: window.innerWidth, height: window.innerHeight }
-      if (nextMode !== mode.current) {
-        mode.current = nextMode
-        setDocumentMode(nextMode)
-      }
       settle()
       positionShells(true)
     }
     resize()
     window.addEventListener('resize', resize)
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : undefined
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => positionShells())
+      : undefined
     if (stage.current?.parentElement) observer?.observe(stage.current.parentElement)
     if (windowRef.current) observer?.observe(windowRef.current)
     if (caption.current) observer?.observe(caption.current)
@@ -190,7 +220,8 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
   useEffect(() => {
     const save = () => {
       const viewport = layoutViewport.current
-      if (mode.current && !live.current.blocked && viewport.width === window.innerWidth && viewport.height === window.innerHeight) remember()
+      if (!live.current.blocked && viewport.width === window.innerWidth
+        && viewport.height === window.innerHeight) remember()
     }
     window.addEventListener('scroll', save, { passive: true })
     return () => window.removeEventListener('scroll', save)
@@ -214,7 +245,11 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
     const delta = swipeStep(e.changedTouches[0].clientX-start.x, e.changedTouches[0].clientY-start.y)
     if (delta) { suppressClick.current = true; select(current.current + delta, 'swipe') }
   }
-  return <div className={`folder-workspace${documentMode ? ' is-document' : ''}${outgoing !== null ? ' is-transitioning' : ''}`} data-reduced-motion={reduced}>
+  return <div
+    className={`folder-workspace is-document${outgoing !== null ? ' is-transitioning' : ''}`}
+    data-reduced-motion={reduced}
+    data-content-instant={contentInstant}
+  >
     <button className="folder-skip" onClick={() => panels.current[active]?.focus({ preventScroll: true })}>跳至目前頁內容</button>
     <div className="folder-tabs" role="tablist" aria-label="分析分頁" style={{ '--selected': active } as CSSProperties}>
       <div className="folder-tab-highlight" aria-hidden="true" inert style={{ clipPath: `inset(0 ${(4-active)*20}% 0 ${active*20}% round 32px)` }}>
@@ -245,9 +280,9 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
             <div className="folder-shape" aria-hidden="true"/>
             <header className="folder-title" onTouchStart={touchStart} onTouchMove={e => { if(e.touches.length !== 1) touch.current = null }} onTouchEnd={touchEnd} onTouchCancel={() => { touch.current = null }} onClickCapture={e => { if(suppressClick.current) { e.preventDefault(); e.stopPropagation(); suppressClick.current = false } }}>
               <span className="folder-label"><Icon name={page.icon}/>{page.label}<span className="folder-page-count">0{index+1} / 05</span></span>
-              <span className="folder-description">{page.description}</span><span className="folder-swipe-hint">左右滑動切換分頁</span>
+              <span className="folder-swipe-hint">左右滑動切換分頁</span>
             </header>
-            <div className="folder-reader" ref={node => { readers.current[index] = node }} onScroll={() => { if(selected && !blocked) remember(index) }}>
+            <div className="folder-reader" ref={node => { readers.current[index] = node }}>
               <div key={contextKey} className="folder-page-content">{renderPage(index)}</div>
             </div>
           </div>
