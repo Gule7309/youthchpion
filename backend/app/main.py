@@ -87,6 +87,7 @@ def dashboard_quality_checks(
             "vacancy_period_current": False,
             "required_indicator_coverage": False,
             "taiwanjobs_ai_mapping_coverage": False,
+            "exact_18_35_ready": False,
             "complete_risk_ready": False,
         }
     sources = {source.source_id: source for source in dashboard.sources}
@@ -126,6 +127,11 @@ def dashboard_quality_checks(
         ),
         "taiwanjobs_ai_mapping_coverage": isinstance(mapping_coverage, (int, float))
         and float(mapping_coverage) >= float(minimum_mapping),
+        "exact_18_35_ready": (
+            dashboard.summary_metrics.get("analysis_population_exact") is True
+            and dashboard.summary_metrics.get("analysis_population_source_id")
+            == "dgbas_microdata_18_35"
+        ),
         "complete_risk_ready": bool(dashboard.occupation_signals)
         and all(
             signal.complete_risk_score is not None

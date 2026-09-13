@@ -16,6 +16,7 @@ from app.sources.dgbas import (
     discover_table_url,
     parse_dgbas_workbook,
 )
+from app.sources.dgbas_microdata import DgbasMicrodataAdapter, parse_dgbas_microdata
 from app.sources.ilo import parse_ilo_csv
 from app.sources.moda_public_opinion import (
     discover_latest_survey_page,
@@ -24,6 +25,83 @@ from app.sources.moda_public_opinion import (
 )
 from app.sources.taiwanjobs import TaiwanJobsAdapter, parse_taiwanjobs_xml
 from app.sources.vacancy_history import parse_vacancy_history
+
+
+def _microdata_line(*, age: int, occupation: int, weight: int) -> str:
+    fields = [" "] * 91
+    fields[21:24] = f"{age:03d}"
+    fields[80:82] = f"{occupation:02d}"
+    fields[86:91] = f"{weight:05d}"
+    return "".join(fields)
+
+
+def test_dgbas_microdata_uses_exact_age_boundaries_and_annual_weights() -> None:
+    body = "\n".join(
+        [
+            _microdata_line(age=17, occupation=21, weight=1200),
+            _microdata_line(age=18, occupation=21, weight=1200),
+            _microdata_line(age=20, occupation=21, weight=1200),
+            _microdata_line(age=24, occupation=21, weight=1200),
+            _microdata_line(age=25, occupation=41, weight=1200),
+            _microdata_line(age=29, occupation=41, weight=1200),
+            _microdata_line(age=30, occupation=71, weight=1200),
+            _microdata_line(age=35, occupation=71, weight=1200),
+            _microdata_line(age=36, occupation=71, weight=1200),
+            _microdata_line(age=22, occupation=1, weight=1200),
+        ]
+    ).encode("ascii")
+
+    records, audit = parse_dgbas_microdata(body)
+
+    professional = next(record for record in records if record["code"] == "2")
+    clerical = next(record for record in records if record["code"] == "4")
+    combined = next(record for record in records if record["code"] == "7-9")
+    assert professional["total_employed"] == 400
+    assert professional["youth_employed_18_35"] == 300
+    assert professional["youth_employed_18_24"] == 300
+    assert professional["youth_employed_20_24"] == 200
+    assert clerical["youth_employed_25_29"] == 200
+    assert combined["total_employed"] == 300
+    assert combined["youth_employed_30_35"] == 200
+    assert combined["youth_employed_18_35"] == 200
+    assert audit["sample_rows_by_age_group"] == {
+        "18-35": 7,
+        "18-24": 3,
+        "20-24": 2,
+        "25-29": 2,
+        "30-35": 2,
+    }
+
+
+def test_dgbas_microdata_fails_closed_on_invalid_layout() -> None:
+    with pytest.raises(ValueError, match="expected at least 91"):
+        parse_dgbas_microdata(b"too short\n")
+
+
+async def test_dgbas_microdata_adapter_does_not_emit_raw_person_rows(tmp_path) -> None:
+    source = tmp_path / "licensed.dat"
+    source.write_text(
+        "\n".join(
+            _microdata_line(age=age, occupation=occupation, weight=1200)
+            for age, occupation in zip(
+                (18, 20, 24, 25, 29, 30, 35),
+                (11, 21, 31, 41, 51, 61, 71),
+                strict=True,
+            )
+        ),
+        encoding="ascii",
+    )
+
+    result = await DgbasMicrodataAdapter(
+        data_period=2024,
+        local_path=source,
+        minimum_rows=7,
+    ).fetch()
+
+    assert len(result.records) == 7
+    assert result.raw_artifacts == []
+    assert result.snapshot.data_period == "2024"
+    assert result.snapshot.content_sha256
 
 
 def test_dgbas_parser_extracts_20_to_29_and_converts_thousands() -> None:

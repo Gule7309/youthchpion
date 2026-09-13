@@ -33,6 +33,44 @@ describe('live dashboard 決策資料 adapter', () => {
     expect(buildMeetingDraft(analysis, [])?.kind).toBe('monitoring-summary')
   })
 
+  it('取得受授權個體資料後，決策契約與來源會切換為精確 18–35 歲', () => {
+    const dashboard = structuredClone(dashboardFixture)
+    dashboard.sources.push({
+      ...dashboard.sources[0],
+      source_id: 'dgbas_microdata_18_35',
+      dataset_name: '主計總處人力資源調查個體資料（加權彙總）',
+      reference_url: 'https://doi.org/10.6141/TW-SRDA-AA000047-1',
+    })
+    dashboard.summary_metrics = {
+      ...dashboard.summary_metrics,
+      analysis_population_label: '18–35 歲',
+      analysis_population_exact: true,
+      analysis_population_source_id: 'dgbas_microdata_18_35',
+    }
+    const occupation = structuredClone(dashboard.occupation_signals[0])
+    occupation.youth_employed_18_35 = occupation.youth_employed
+    occupation.source_snapshot_ids = [
+      'dgbas_microdata_18_35',
+      'ilo_genai_exposure',
+      'taiwanjobs',
+      'mol_vacancy_history',
+    ]
+
+    const analysis = analysisFromDashboard({
+      dashboard,
+      occupation,
+      evidenceItems: [],
+      verification: null,
+      policy: null,
+    })
+
+    expect(analysis.targetPopulation).toBe('18–35 歲青年')
+    expect(analysis.actualPopulation).toContain('18–35 歲精確年齡')
+    expect(analysis.indicators.find((item) => item.id === 'A')?.sourceRefs)
+      .toEqual(['dgbas_microdata_18_35'])
+    expect(analysis.claims[0].relations[0].evidenceId).toBe('dgbas_microdata_18_35')
+  })
+
   it('只有同一分析版本、非 fixture 且通過原文閘門的政策可被選取', () => {
     const analysis = decisionFixture(2)
     expect(analysis.policies).toHaveLength(2)

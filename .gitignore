@@ -16,5 +16,8 @@ frontend/coverage/
 .playwright-cli/
 output/
 build/
+# Licensed DGBAS/SRDA person-level files must never enter Git.
+lb[0-9][0-9][0-9].dat
+restricted/
 frontend/vite.config.js
 frontend/vite.config.d.ts

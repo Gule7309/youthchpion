@@ -27,7 +27,11 @@ export interface OccupationSignal {
   code: string
   name: string
   youth_employed?: number
+  youth_employed_18_24?: number
+  youth_employed_20_24?: number
   youth_employed_25_29?: number
+  youth_employed_30_35?: number
+  youth_employed_18_35?: number
   youth_employment_share?: number
   occupation_share_of_youth?: number
   exposure_level: string

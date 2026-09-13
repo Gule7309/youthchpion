@@ -9,6 +9,14 @@ Parameters:
   AllowedOrigin:
     Type: String
     Default: http://localhost:5173
+  DgbasMicrodataPeriod:
+    Type: String
+    Default: ''
+    Description: Licensed DGBAS/SRDA annual microdata year; empty keeps the public aggregate fallback.
+  DgbasMicrodataS3Key:
+    Type: String
+    Default: ''
+    Description: Private object key for licensed lb113.dat; never expose it through the API.
 
 Globals:
   Function:
@@ -21,6 +29,8 @@ Globals:
         DATA_BUCKET: !Ref SnapshotBucket
         BEDROCK_MODEL_ID: !Ref BedrockModelId
         BEDROCK_MIN_INTERVAL_MS: '1100'
+        DGBAS_MICRODATA_PERIOD: !Ref DgbasMicrodataPeriod
+        DGBAS_MICRODATA_S3_KEY: !Ref DgbasMicrodataS3Key
 
 Resources:
   SnapshotBucket:

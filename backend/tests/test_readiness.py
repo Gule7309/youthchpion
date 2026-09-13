@@ -62,6 +62,7 @@ def test_readiness_distinguishes_safe_core_from_incomplete_risk() -> None:
     assert checks["dgbas_period_current"] is True
     assert checks["required_indicator_coverage"] is True
     assert checks["taiwanjobs_ai_mapping_coverage"] is True
+    assert checks["exact_18_35_ready"] is False
     assert checks["complete_risk_ready"] is False
 
 

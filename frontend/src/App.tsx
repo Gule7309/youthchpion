@@ -65,6 +65,7 @@ const applicabilityStatus = (value: EvidenceVerification['taiwan_applicability']
 
 const SOURCE_NAMES: Record<string, string> = {
   dgbas_employment: '主計總處／20–24 歲就業結構',
+  dgbas_microdata_18_35: '主計總處／18–35 歲個體資料加權彙總',
   ilo_genai_exposure: 'ILO／生成式 AI 職業暴露',
   taiwanjobs: '台灣就業通／即時初階職缺',
   job104_research: '104／民間 AI 產業訊號',
@@ -98,9 +99,9 @@ const OCCUPATION_ICONS: Record<string, IconName> = {
   '5': 'users',
 }
 
-function indicator(signal: OccupationSignal, id: string) {
+function indicator(signal: OccupationSignal, id: string, youthLabel: string) {
   if (id === 'S') return { value: score(signal.structural_exposure_score), note: signal.structural_exposure_score == null ? 'A 或 B 缺值，暫不計算' : '以 A×B 計算，供職業間比較' }
-  if (id === 'A') return { value: percent(signal.youth_employment_share), ratio: signal.youth_employment_share, note: `該職業內 20–24 歲占比；青年分布 P=${percent(signal.occupation_share_of_youth)}` }
+  if (id === 'A') return { value: percent(signal.youth_employment_share), ratio: signal.youth_employment_share, note: `該職業內 ${youthLabel}占比；青年分布 P=${percent(signal.occupation_share_of_youth)}` }
   if (id === 'B') return { value: score(signal.exposure_score), ratio: signal.exposure_score, note: 'ILO 職務暴露代理值' }
   if (id === 'H') return { value: percent(signal.recruitment_weakening), ratio: signal.recruitment_weakening, note: `官方求才年變化 ${percent(signal.recruitment_yoy_change)}` }
   if (id === 'D') return { value: percent(signal.ai_entry_opportunity_rate), ratio: signal.ai_entry_opportunity_rate, note: `${number.format(signal.ai_entry_jobs)} 個 AI 相關機會；${dStatus(signal.ai_entry_opportunity_status)}` }
@@ -331,7 +332,12 @@ export default function App() {
   }
 
   const metrics = dashboard.summary_metrics
+  const youthLabel = String(metrics.analysis_population_label ?? '20–24 歲')
+  const youthSourceId = String(metrics.analysis_population_source_id ?? 'dgbas_employment')
+  const youthExact = metrics.analysis_population_exact === true
   const dgbasPeriod = dashboard.sources.find(
+    (source) => source.source_id === youthSourceId,
+  )?.data_period ?? dashboard.sources.find(
     (source) => source.source_id === 'dgbas_employment',
   )?.data_period ?? '—'
   const renderPage = (index: number) => {
@@ -340,7 +346,7 @@ export default function App() {
       <div className="indicator-overview">
         {flow && <AnalysisSummary flow={flow} />}
         <div className="indicator-metrics">{([['S', '實驗性結構暴露'], ['A', '青年集中程度'], ['B', 'AI 能力暴露'], ['C', '台灣 AI 導入訊號'], ['H', '招募弱化'], ['D', 'AI 人才需求']] as const).map(([id, label]) => {
-          const metric = selected ? indicator(selected, id) : { value: '—', ratio: undefined, note: '' }
+          const metric = selected ? indicator(selected, id, youthLabel) : { value: '—', ratio: undefined, note: '' }
           return <button type="button" className="policy-metric indicator-help-trigger" key={id} aria-label={`查看 ${id} ${label}的意涵與計算方式`} aria-haspopup="dialog" aria-controls="analysis-detail" onClick={(event) => openDetail(`指標 ${id}`, event.currentTarget, event.detail === 0)}>
             <span className={`metric-code metric-code--${id}`}>{id}</span>
             <span><b className="metric-name">{label}</b><small>{metric.note}</small><span className="indicator-help-link">意涵與計算方式 ↗</span></span>
@@ -377,7 +383,7 @@ export default function App() {
 
     if (index === 2) return <aside className="panel policy-diagnosis">
       <div className="section-kicker"><Icon name="sparkles" />職業診斷</div><h2>{selected?.name}</h2>
-      <div className="diagnostic-summary"><span className="diagnostic-icon"><Icon name="info" /></span><span className="policy-diagnostic-label">結構暴露 {score(selected?.structural_exposure_score)}／100</span><p>求才人次比前期變化 <ChangeText text={percent(selected?.recruitment_yoy_change)} />；請搭配結構暴露、招募訊號與研究證據判讀，不能單獨歸因於 AI。</p><small>資料信心：{confidence(selected?.data_confidence)}</small></div>
+      <div className="diagnostic-summary"><span className="diagnostic-icon"><Icon name="info" /></span><span className="policy-diagnostic-label">結構暴露 {score(selected?.structural_exposure_score)}／100</span><p>{youthLabel}就業 {number.format(selected?.youth_employed ?? 0)} 人，占該職業 {percent(selected?.youth_employment_share)}；求才人次比前期變化 <ChangeText text={percent(selected?.recruitment_yoy_change)} />。請搭配結構暴露、招募訊號與研究證據判讀，不能單獨歸因於 AI。</p><small>資料信心：{confidence(selected?.data_confidence)}</small></div>
       {flow && <ClaimList flow={flow} />}
       <h3>判讀重點</h3><ul><li>結構暴露由 A×B 計算，用於職業間比較，不是失業率或個人被取代機率。</li><li>H 是官方求才弱化訊號；D 是即時初階職缺機會，兩者各自呈現。</li><li>C 尚無可靠的職業層級量化值，目前獨立標示為缺資料。</li><li>求才增減仍可能受到景氣與招募管道影響，不能直接歸因於 AI。</li>{selected?.data_confidence_reasons?.map((reason) => <li key={reason}>{reason}</li>)}</ul>
       <details data-memory="diagnosis-types"><summary>診斷類型說明</summary><p>證據完整後可區分自動化壓力、AI 增強機會、技能錯配／轉型、非 AI 招募弱化與持續觀察；證據不足時不勉強分類。</p></details>
@@ -418,7 +424,7 @@ export default function App() {
       <div className="folder-period"><span><Icon name="calendar" />就業資料期 <b>{dgbasPeriod}</b></span><span><Icon name="clock" />最後發布 <b>{time(dashboard.published_at)}</b></span></div>
       <button className="button folder-refresh" disabled={Boolean(busy) || modalOpen} onClick={refresh}><Icon name="refresh" className={busy && !['SEARCHING', 'VERIFYING', 'POLICY'].includes(busy) ? 'is-spinning' : ''} />{busy && !['SEARCHING', 'VERIFYING', 'POLICY'].includes(busy) ? `${busy}…` : '重新抓取資料'}</button>
     </header>
-    <div className="folder-context"><span>全國職業大類 <span aria-hidden="true">/</span> 政策目標 18–35 歲 <span aria-hidden="true">/</span> 目前後端資料 20–24 歲 <span aria-hidden="true">/</span> 執行 {dashboard.analysis_run_id}</span><span className="snapshot-badge"><i />{dashboard.overall_status} · 可核對資料快照</span></div>
+    <div className="folder-context"><span>全國職業大類 <span aria-hidden="true">/</span> 政策目標 18–35 歲 <span aria-hidden="true">/</span> {youthExact ? '精確個體資料加權 18–35 歲' : `目前後端資料 ${youthLabel}`} <span aria-hidden="true">/</span> 執行 {dashboard.analysis_run_id}</span><span className="snapshot-badge"><i />{dashboard.overall_status} · 可核對資料快照</span></div>
     <BackendNotice message={notice} busy={Boolean(busy)} onDismiss={dismissNotice} />
     {error && <p className="error-banner" role="alert"><b>流程未完成</b>{error}</p>}
     <FolderWorkspace ref={workspace} contextKey={contextKey} blocked={modalOpen} onExternalNavigate={() => closeDetail(false)} renderPage={renderPage} />
@@ -434,7 +440,7 @@ export default function App() {
       {indicatorId && <><p className="policy-muted">目前職業：{selected?.name}</p><IndicatorExplanation id={indicatorId} /></>}
       {evidenceId && <EvidenceDetail evidence={analysis?.evidence.find((item) => item.id === evidenceId)} />}
       {!indicatorId && !evidenceId && detail === '資料來源' && <>{dashboard.sources.map((source) => <section key={source.source_id}><h3>{SOURCE_NAMES[source.source_id] ?? source.source_id} <span className={`status status--${source.status.toLowerCase()}`}>{source.status}</span></h3>{source.data_period && <p><b>資料期：</b>{source.data_period}</p>}<p><b>使用：</b>{source.fields_used?.join('、')}</p><p><b>原因：</b>{source.why_used}</p><p><b>限制：</b>{source.limitations}</p>{source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">查看來源說明頁 <Icon name="external" /></a>}</section>)}<p><b>LIVE：</b>本次重抓成功且內容雜湊有變；<b>UNCHANGED：</b>本次仍有重抓，但內容雜湊與上次相同。</p></>}
-      {!indicatorId && !evidenceId && detail === '計算方式' && <><p><b>實驗性結構暴露 = 100 × √(A × B)</b></p><p>A：該職業內 20–24 歲就業人數／該職業全部就業人數；P：該職業占全部 20–24 歲就業的比率；B：ILO 生成式 AI 任務暴露 proxy；H：官方求才年減的獨立弱化訊號；D：台灣就業通 AI 初階職缺占比。H 與 D 不納入結構暴露計算，另行呈現。</p><p>目前選取：A={percent(selected?.youth_employment_share)}、P={percent(selected?.occupation_share_of_youth)}、B={score(selected?.exposure_score)}、H={percent(selected?.recruitment_weakening)}、D={percent(selected?.ai_entry_opportunity_rate)}；結構暴露 {score(selected?.structural_exposure_score)}。</p><p>目前以結構暴露作為職業比較值；其他訊號只供交叉判讀。</p><code>{String(metrics.score_version ?? '')}</code></>}
+      {!indicatorId && !evidenceId && detail === '計算方式' && <><p><b>實驗性結構暴露 = 100 × √(A × B)</b></p><p>A：該職業內 {youthLabel}就業人數／該職業全部就業人數；P：該職業占全部 {youthLabel}就業的比率；B：ILO 生成式 AI 任務暴露 proxy；H：官方求才年減的獨立弱化訊號；D：台灣就業通 AI 初階職缺占比。H 與 D 不納入結構暴露計算，另行呈現。</p><p>目前選取：A={percent(selected?.youth_employment_share)}、P={percent(selected?.occupation_share_of_youth)}、B={score(selected?.exposure_score)}、H={percent(selected?.recruitment_weakening)}、D={percent(selected?.ai_entry_opportunity_rate)}；結構暴露 {score(selected?.structural_exposure_score)}。</p><p>目前以結構暴露作為職業比較值；其他訊號只供交叉判讀。</p><code>{String(metrics.score_version ?? '')}</code></>}
       {!indicatorId && !evidenceId && detail === '清洗紀錄' && <>{dashboard.sources.map((source) => <section key={source.source_id}><h3>{SOURCE_NAMES[source.source_id] ?? source.source_id}</h3><p>{number.format(source.raw_rows)} {source.input_count_label} → {number.format(source.normalized_rows)} {source.output_count_label}</p><ol>{source.processing_steps?.map((step) => <li key={step}>{step}</li>)}</ol><code>SHA-256 {source.content_sha256?.slice(0, 20)}…</code></section>)}<p>JOIN 覆蓋率 {percent(dashboard.cleaning_summary.crosswalk_coverage)}；轉換規則 {dashboard.cleaning_summary.transform_version}。</p></>}
       {!indicatorId && !evidenceId && detail === '估算限制' && <><p>A×B 是跨來源的實驗性結構暴露排序，不是 AI 造成失業的因果估計，也不是個人被取代機率。</p><p>C（台灣產業實際 AI 導入）目前只有產業研究脈絡，缺少可比的「產業→職業」權重，因此不加入結構暴露。</p><p>H 只代表公立就業服務求才弱化，不能歸因於 AI；D 的抽樣、分類與 crosswalk 品質仍需逐項顯示。民意調查只反映主觀感受。</p></>}
     </dialog>
