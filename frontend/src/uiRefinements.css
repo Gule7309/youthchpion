@@ -31,3 +31,41 @@
 .evidence-selection { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-block:16px; }
 @media (max-width:767px) { .backend-toast { right:16px; bottom:16px; }.occupation-label { gap:6px; }.occupation-number { min-width:1em; } }
 @media print { .backend-toast { display:none; } }
+
+/* A single cool-neutral palette keeps the indicator page calm; colour is used
+   only to distinguish indicator families, never as decoration. */
+.folder-app {
+  --ink:#20343e;
+  --muted:#657985;
+  --line:#d8e3e8;
+  --surface-soft:#eef4f6;
+  --blue:#0f536b;
+}
+.folder-app .decision-summary {
+  background:#eef4f6;
+  border-left-color:#0f536b;
+  color:#20343e;
+}
+.folder-app .decision-summary small { color:#607581; }
+.folder-app .policy-metric {
+  background:#fff;
+  border-color:#d8e3e8;
+  box-shadow:0 1px 0 rgba(15,83,107,.03);
+}
+.folder-app .policy-metric > strong {
+  color:#244f61;
+  font-weight:750;
+  font-variant-numeric:tabular-nums;
+}
+.folder-app .policy-metric small { color:#697c87; }
+.folder-app .indicator-help-link { color:#0f536b; }
+.folder-app .indicator-help-trigger:hover {
+  background:#f6f9fa;
+  border-color:#9eb9c5;
+}
+.folder-app .metric-code--S { background:#e3eef3; color:#174f66; }
+.folder-app .metric-code--A { background:#e7f0e9; color:#376249; }
+.folder-app .metric-code--B { background:#ece9f2; color:#645477; }
+.folder-app .metric-code--C { background:#f2eee2; color:#705f3d; }
+.folder-app .metric-code--H { background:#f2e9e7; color:#7a514d; }
+.folder-app .metric-code--D { background:#e6efed; color:#37635c; }

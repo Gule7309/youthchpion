@@ -84,12 +84,8 @@ const OCCUPATION_ICONS: Record<string, IconName> = {
   '5': 'users',
 }
 
-function meter(value?: number) {
-  const width = value == null ? 0 : Math.max(0, Math.min(100, value * 100))
-  return { width: `${width}%` }
-}
-
 function indicator(signal: OccupationSignal, id: string) {
+  if (id === 'S') return { value: score(signal.structural_exposure_score), note: signal.structural_exposure_score == null ? 'A 或 B 缺值，暫不計分' : '目前僅以 A×B 計算；完整 Risk 尚未發布' }
   if (id === 'A') return { value: percent(signal.youth_employment_share), ratio: signal.youth_employment_share, note: `該職業內 20–24 歲占比；青年分布 P=${percent(signal.occupation_share_of_youth)}` }
   if (id === 'B') return { value: score(signal.exposure_score), ratio: signal.exposure_score, note: 'ILO 職務暴露代理值' }
   if (id === 'H') return { value: percent(signal.recruitment_weakening), ratio: signal.recruitment_weakening, note: `官方求才年變化 ${percent(signal.recruitment_yoy_change)}` }
@@ -165,7 +161,10 @@ export default function App() {
   const visibleSignals = rankedSignals.slice(0, 3)
   const selected = dashboard?.occupation_signals.find((item) => item.code === selectedCode)
     ?? visibleSignals[0]
-  const maxJobs = Math.max(...visibleSignals.map((item) => item.total_entry_jobs), 1)
+  const maxVacancies = Math.max(...visibleSignals.flatMap((item) => [
+    item.recruitment_vacancies_previous ?? 0,
+    item.recruitment_vacancies_current ?? 0,
+  ]), 1)
   const analysis = useMemo(() => dashboard && selected ? analysisFromDashboard({
     dashboard,
     occupation: selected,
@@ -323,58 +322,52 @@ export default function App() {
   )?.data_period ?? '—'
   const renderPage = (index: number) => {
     if (index === 0) return <aside className="panel policy-indicators" aria-label="目前職業核心指標">
-      <div className="indicator-heading"><div className="section-kicker"><Icon name="formula" />核心指標</div><h2>{selected?.name}</h2></div>
+      <div className="indicator-heading"><h2>{selected?.name}</h2><div className="section-kicker"><Icon name="chart" /><span>核心指標</span></div></div>
       <div className="indicator-overview">
-        <button type="button" className="policy-risk indicator-help-trigger indicator-risk-trigger" aria-label="查看 S 結構性 AI 暴露的意涵與計算方式" aria-haspopup="dialog" aria-controls="analysis-detail" onClick={(event) => openDetail('指標 S', event.currentTarget, event.detail === 0)}>
-          <div className="risk-label"><span>實驗性結構暴露</span><Icon name="sparkles" /></div>
-          <strong>{score(selected?.structural_exposure_score)}<small> / 100</small></strong>
-          <span className="risk-caption">僅 A×B；完整 Risk 尚未發布</span>
-          <span className="indicator-help-link">意涵與計算方式 ↗</span>
-        </button>
         {flow && <AnalysisSummary flow={flow} />}
-      </div>
-      <div className="indicator-metrics">{([['A', '職業內青年占比'], ['B', 'AI 職業暴露'], ['H', '官方招募弱化'], ['D', 'AI 初階機會'], ['C', '台灣產業導入']] as const).map(([id, label]) => {
+        <div className="indicator-metrics">{([['S', '實驗性結構暴露'], ['A', '青年集中程度'], ['B', 'AI 能力暴露'], ['C', '台灣 AI 導入訊號'], ['H', '招募弱化'], ['D', 'AI 人才需求']] as const).map(([id, label]) => {
           const metric = selected ? indicator(selected, id) : { value: '—', ratio: undefined, note: '' }
           return <button type="button" className="policy-metric indicator-help-trigger" key={id} aria-label={`查看 ${id} ${label}的意涵與計算方式`} aria-haspopup="dialog" aria-controls="analysis-detail" onClick={(event) => openDetail(`指標 ${id}`, event.currentTarget, event.detail === 0)}>
             <span className={`metric-code metric-code--${id}`}>{id}</span>
-            <div><span className="metric-name">{label}</span><small>{metric.note}</small></div>
-            <strong>{metric.value}</strong>
-            <div className="policy-meter" aria-hidden="true"><i style={meter(metric.ratio)} /></div>
-            <span className="indicator-help-link">意涵與計算方式 ↗</span>
+            <span><b className="metric-name">{label}</b><small>{metric.note}</small><span className="indicator-help-link">意涵與計算方式 ↗</span></span>
+            <strong aria-label={`${label}：${metric.value}`}>{metric.value}</strong>
           </button>
         })}</div>
+      </div>
       <button className="policy-text-button" onClick={(event) => openDetail('計算方式', event.currentTarget)}><Icon name="formula" />查看計算方式<Icon name="arrow" /></button>
     </aside>
 
     if (index === 1) return <div className="risk-layout">
       <aside className="risk-overview">
-        <span className="section-kicker">目前職業的排序訊號</span><h2>{selected?.name}</h2>
-        <div className="policy-risk"><div className="risk-label"><span>結構暴露</span><Icon name="chart" /></div><strong>{score(selected?.structural_exposure_score)}<small> / 100</small></strong><span className="risk-caption">不是失業或取代機率</span></div>
-        <p className="policy-muted">C 缺值時不產生完整風險分數。</p>
+        <span className="section-kicker">目前職業的風險</span><h2>{selected?.name}</h2>
+        <div className="policy-risk"><div className="risk-label"><span>AI 就業風險</span><Icon name="sparkles" /></div><strong>{score(selected?.complete_risk_score)}<small> / 100</small></strong><span className="risk-caption">{selected?.complete_risk_score == null ? '資料不足，暫不評分' : '完整模型計算結果'}</span></div>
+        <p className="policy-muted">此模型為早期預警指標，不是失業機率。</p>
+        {flow?.analysis.claims[0] && <button className="policy-text-button" onClick={(event) => flow.navigate(2, `claim-${flow.analysis.claims[0].id}`, event.detail === 0)}>查看判讀原因<Icon name="arrow" /></button>}
       </aside>
       <section className="panel policy-comparison" aria-labelledby="comparison-title">
         <div className="panel__header"><div><div className="section-kicker"><Icon name="users" />職業比較</div><h2 id="comparison-title" tabIndex={-1} data-flow-id="comparison-title">哪些職業值得優先關注？</h2></div><span className="status">{visibleSignals.length} 個職業</span></div>
-        <p className="policy-muted">依同一次資料快照的 A×B 結構暴露排序；C 缺值時不產生完整風險分數。</p>
-        <div className="policy-table-head"><span>職業</span><span>結構暴露</span><span>AI 初階機會</span></div>
+        <p className="policy-muted">Risk 尚未核定時不做風險排名；序號只表示目前列表順序，並保留已核對的招募訊號供比較。</p>
+        <div className="policy-table-head"><span>職業</span><span>Risk</span><span>求才年變化</span></div>
         <div role="group" aria-label="選擇職業">{visibleSignals.map((item, index) => <button className="policy-occupation" aria-pressed={selected?.code === item.code} key={item.code} onClick={() => selectOccupation(item.code)}>
-          <span className="occupation-label"><span className="occupation-number" aria-label={`排名 ${index + 1}`}>{String(index + 1).padStart(2, '0')}</span><span className={`occupation-icon occupation-icon--${item.code}`}><Icon name={OCCUPATION_ICONS[item.code] ?? 'briefcase'} /></span><span><b>{item.name}</b><small>職業大類 {item.code}</small></span></span>
-          <span><b>{score(item.structural_exposure_score)}</b><small>{item.complete_risk_score == null ? '完整風險未發布' : '完整風險可用'}</small></span>
-          <strong>{percent(item.ai_entry_opportunity_rate)}</strong>
+          <span className="occupation-label"><span className="occupation-number" aria-label={`序號 ${index + 1}`}>{String(index + 1).padStart(2, '0')}</span><span className={`occupation-icon occupation-icon--${item.code}`}><Icon name={OCCUPATION_ICONS[item.code] ?? 'briefcase'} /></span><span><b>{item.name}</b><small>職業大類 {item.code}</small></span></span>
+          <span className="unscored"><b>{score(item.complete_risk_score)}</b><small>{item.complete_risk_score == null ? '待核對' : '已計算'}</small></span>
+          <ChangeText text={percent(item.recruitment_yoy_change)} />
         </button>)}</div>
-        {selected && <div className="policy-trend"><div className="trend-heading"><span className="trend-icon"><Icon name="chart" /></span><div><h3>{selected.name}的職缺與官方求才訊號</h3><p>即時初階職缺與獨立歷史求才序列</p></div></div><p>勞動部官方求才年變化 <ChangeText text={percent(selected.recruitment_yoy_change)} />。</p>
-          {[{ label: '全部', value: selected.total_entry_jobs }, { label: 'AI', value: selected.ai_entry_jobs }].map((row) => <div className="policy-bar" key={row.label}><span>{row.label}</span><div><i style={{ width: `${row.value / maxJobs * 100}%` }} /></div><b>{number.format(row.value)} 個機會</b></div>)}
-          <small>主計總處、ILO、台灣就業通與勞動部歷史求才資料依職業大類 Join；各來源用途與限制可追溯。</small>
-          {flow?.analysis.claims[0] && <button className="policy-text-button" onClick={(event) => flow.navigate(2, `claim-${flow.analysis.claims[0].id}`, event.detail === 0)}>查看判讀原因<Icon name="arrow" /></button>}
+        {selected && <div className="policy-trend"><div className="trend-heading"><span className="trend-icon"><Icon name="chart" /></span><div><h3>{selected.name}的招募訊號</h3><p>整體新登記求才人次 · 前期 → 本期</p></div></div>
+          {[{ label: '前期', value: selected.recruitment_vacancies_previous }, { label: '本期', value: selected.recruitment_vacancies_current }].map((row) => <div className="policy-bar" key={row.label}><span>{row.label}</span><div><i style={{ width: `${((row.value ?? 0) / maxVacancies) * 100}%` }} /></div><b>{row.value == null ? '—' : `${number.format(row.value)} 人次`}</b></div>)}
+          <p>年度變化 <ChangeText text={percent(selected.recruitment_yoy_change)} /></p>
+          <small>同一官方求才序列、同尺度且從零起算；求才人次不是青年新人職缺，也不能單獨推論 AI 因果。</small>
         </div>}
       </section>
     </div>
 
     if (index === 2) return <aside className="panel policy-diagnosis">
       <div className="section-kicker"><Icon name="sparkles" />職業診斷</div><h2>{selected?.name}</h2>
-      <div className="diagnostic-summary"><span className="diagnostic-icon"><Icon name="info" /></span><span className="policy-diagnostic-label">{selected?.priority === 'high' ? '相對高結構暴露' : selected?.priority === 'medium' ? '相對中段' : '持續觀察'}</span><p>實驗性結構暴露 {score(selected?.structural_exposure_score)}；20–24 歲就業 {number.format(selected?.youth_employed ?? 0)} 人，占該職業 {percent(selected?.youth_employment_share)}；官方求才年變化 <ChangeText text={percent(selected?.recruitment_yoy_change)} />。</p><small>資料信心：{confidence(selected?.data_confidence)}（與分數分開）</small></div>
-      <h3>判讀重點</h3><ul><li>A×B 只形成結構暴露排序；不是失業、取代率或完整 Risk。</li><li>H 來自獨立官方求才序列；D 是另一份即時職缺機會訊號，不互相反轉。</li><li>C 尚無可靠職業量化值，因此完整 Risk 保持空值。</li><li>公眾感受獨立呈現，不冒充客觀風險或因果。</li>{selected?.data_confidence_reasons?.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+      <div className="diagnostic-summary"><span className="diagnostic-icon"><Icon name="info" /></span><span className="policy-diagnostic-label">{selected?.complete_risk_score == null ? '證據不足' : selected?.priority === 'high' ? '優先關注' : selected?.priority === 'medium' ? '持續追蹤' : '持續觀察'}</span><p>求才人次比前期變化 <ChangeText text={percent(selected?.recruitment_yoy_change)} />；目前{selected?.complete_risk_score == null ? '還不能判定是否與 AI 有關' : '可搭配完整指標與研究證據進一步判讀'}。</p><small>資料信心：{confidence(selected?.data_confidence)}（與風險分數分開）</small></div>
       {flow && <ClaimList flow={flow} />}
-      <details data-memory="public-opinion"><summary>公眾感受</summary>{dashboard.public_opinion.map((item) => <p key={String(item.label)}>{String(item.label)}：{String(item.value)}{String(item.unit)}（{String(item.survey_year)}）</p>)}</details>
+      <h3>判讀重點</h3><ul><li>A×B 目前只形成結構暴露訊號，不是失業率或個人被取代機率。</li><li>H 是官方求才弱化訊號；D 是即時初階職缺機會，兩者各自呈現。</li><li>C 尚無可靠職業量化值時，完整 Risk 保持空值。</li><li>求才增減仍可能受到景氣與招募管道影響，不能直接歸因於 AI。</li>{selected?.data_confidence_reasons?.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+      <details data-memory="diagnosis-types"><summary>診斷類型說明</summary><p>證據完整後可區分自動化壓力、AI 增強機會、技能錯配／轉型、非 AI 招募弱化與持續觀察；證據不足時不勉強分類。</p></details>
+      {dashboard.public_opinion.length > 0 && <details data-memory="public-opinion"><summary>公眾感受</summary>{dashboard.public_opinion.map((item) => <p key={String(item.label)}>{String(item.label)}：{String(item.value)}{String(item.unit)}（{String(item.survey_year)}）</p>)}</details>}
       <div className="policy-detail-links">{(['資料來源', '清洗紀錄', '估算限制'] as Detail[]).map((kind) => <button className="policy-text-button" key={kind} onClick={(event) => openDetail(kind, event.currentTarget)}><Icon name={DETAIL_ICONS[kind]} />查看{kind}<Icon name="arrow" /></button>)}</div>
     </aside>
 
@@ -396,10 +389,11 @@ export default function App() {
     </section>
 
     return <section className="panel policy-report" id="policy" aria-labelledby="policy-title">
-      <div className="panel__header"><div><div className="section-kicker"><Icon name="report" />政策建議</div><h2 id="policy-title">{selected?.name}的政策選項</h2></div><span className="status">BEDROCK</span></div>
-      {!policy && <><h3>先通過權威證據閘門，再收斂政策</h3><p>政策 API 只接受本次分析版本中、已被 Agent 取回原文並通過 publication gate 的證據 ID。</p><div className="policy-report-outline"><span>政策輸出會比較</span><ol><li>介入機制與目標族群</li><li>執行步驟與 KPI</li><li>證據、風險與限制</li></ol></div><button className="button" onClick={runPolicy} disabled={Boolean(busy) || !verification?.approved_evidence_ids.length}><Icon name="report" />{busy === 'POLICY' ? '推論中…' : '產生三個政策選項'}</button></>}
+      <div className="panel__header"><div><div className="section-kicker"><Icon name="report" />政策建議</div><h2 id="policy-title">{selected?.name}的政策方向</h2></div><span className="status">{verification?.approved_evidence_ids.length ? '證據已核對' : '待研究核對'}</span></div>
       {policy && <><p className="policy-notice" role="status"><Icon name="info" />已收到 {policy.options.length} 個政策選項；請逐項確認後再納入會議草稿。</p>{policy.warnings.map((warning) => <p className="policy-muted" key={warning}>台灣適用性限制：{warning}</p>)}</>}
       {flow && <PolicyMeeting flow={flow} />}
+      <button className="button" onClick={runPolicy} disabled={Boolean(busy) || !verification?.approved_evidence_ids.length}><Icon name="report" />{busy === 'POLICY' ? '推論中…' : '產生三個政策選項'}</button>
+      {!verification?.approved_evidence_ids.length && <p className="policy-muted">先在「論證」頁執行權威證據 Agent；政策 API 只接受已通過來源與出版閘門的證據。</p>}
     </section>
   }
 
