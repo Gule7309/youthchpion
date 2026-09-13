@@ -86,7 +86,7 @@ function indicator(signal: OccupationSignal, id: string) {
   return { value: '缺資料', ratio: undefined, note: '尚無可靠職業層級導入率，不納入 Risk' }
 }
 
-function firstEvidenceSelection(items: EvidenceItem[]) {
+export function firstEvidenceSelection(items: EvidenceItem[]) {
   const preferredKeys = ['taiwanjobs_ai_recruitment', 'refined_index', 'youth_almp']
   const preferred = preferredKeys
     .map((key) => items.find((item) => item.evidence_id.includes(key)))
@@ -94,9 +94,12 @@ function firstEvidenceSelection(items: EvidenceItem[]) {
   const officialFallback = items.filter(
     (item) => item.authority_tier === 'A' && !preferred.includes(item),
   )
-  const authority = [...preferred, ...officialFallback].slice(0, 2)
-  const live = items.find((item) => item.freshness === 'LIVE' && !authority.includes(item))
-  return [...authority, ...(live ? [live] : [])].slice(0, 3).map((item) => item.evidence_id)
+  const liveFallback = items.filter(
+    (item) => item.freshness === 'LIVE' && !preferred.includes(item),
+  )
+  return [...preferred, ...officialFallback, ...liveFallback]
+    .slice(0, 3)
+    .map((item) => item.evidence_id)
 }
 
 function researchQuery(signal: OccupationSignal) {
