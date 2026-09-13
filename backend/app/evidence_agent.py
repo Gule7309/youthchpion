@@ -353,7 +353,7 @@ class AuthorityEvidenceAgent:
 
     @staticmethod
     def _default_selection(candidates: list[EvidenceItem]) -> list[EvidenceItem]:
-        preferred_keys = ("taiwanjobs_ai_recruitment", "refined_index", "youth_almp")
+        preferred_keys = ("industry_newcomer_outcomes", "refined_index", "youth_almp")
         preferred = [
             next(
                 (item for item in candidates if key in item.evidence_id),
@@ -438,20 +438,18 @@ class AuthorityEvidenceAgent:
             for claim in claims
             if claim.taiwan_applicability == "TRANSFER_REQUIRES_LOCAL_VALIDATION"
         ]
-        intervention_markers = (
-            "impact evaluation",
-            "randomized",
-            "quasi-experimental",
-            "政策成效評估",
-            "隨機對照",
-        )
+        local_outcomes = []
         local_interventions = []
         for claim in local_claims:
             item = items_by_id.get(claim.evidence_id)
             if item is None:
                 continue
-            identity = f"{item.evidence_type} {item.title}".casefold()
-            if any(marker in identity for marker in intervention_markers):
+            if item.evidence_role == "OUTCOME_MONITORING":
+                local_outcomes.append(claim)
+            if item.evidence_role == "INTERVENTION_EFFECT" and item.evaluation_design in {
+                "QUASI_EXPERIMENTAL",
+                "RANDOMIZED",
+            }:
                 local_interventions.append(claim)
 
         context_ids = list(dict.fromkeys(local_context.get("source_ids", [])))
@@ -462,6 +460,18 @@ class AuthorityEvidenceAgent:
             status = "TAIWAN_CONTEXT_WITH_LOCAL_INTERVENTION"
             conclusion = "台灣問題脈絡與本地介入成效研究皆已取得；仍須依來源限制解讀。"
             validation: list[str] = []
+        elif problem_supported and local_outcomes:
+            status = "TAIWAN_CONTEXT_WITH_LOCAL_OUTCOME_MONITORING"
+            conclusion = (
+                "台灣已有青年方案的執行成果監測，但缺少比較組，不能單獨證明政策"
+                "造成就業改善；國際研究僅補充可轉移機制，仍須以台灣試辦驗證。"
+            )
+            validation = [
+                f"針對{occupation_name or '目前職類'}執行 90 天台灣試辦",
+                "以 A、H、D 現況建立基線，另追蹤參與、技能作品與優質就業轉換",
+                "設置比較組或分期導入，避免把訓後就業率直接解讀為政策因果效果",
+                "預先定義擴大、調整與停止條件",
+            ]
         elif problem_supported:
             status = "TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE"
             conclusion = (
@@ -487,8 +497,10 @@ class AuthorityEvidenceAgent:
             occupation_name=occupation_name,
             taiwan_problem_context_supported=problem_supported,
             taiwan_intervention_effect_supported=intervention_supported,
+            taiwan_local_outcome_monitoring_supported=bool(local_outcomes),
             local_context_source_ids=context_ids,
             local_research_evidence_ids=[claim.evidence_id for claim in local_claims],
+            local_outcome_evidence_ids=[claim.evidence_id for claim in local_outcomes],
             transfer_evidence_ids=[claim.evidence_id for claim in transfer_claims],
             conclusion=conclusion,
             required_local_validation=validation,
@@ -581,6 +593,24 @@ class AuthorityEvidenceAgent:
             node.decompose()
         passages: list[DocumentPassage] = []
         seen: set[str] = set()
+        for table_number, table in enumerate(
+            soup.select("main table, article table, table"), start=1
+        ):
+            rows = []
+            for row in table.select("tr"):
+                cells = [
+                    " ".join(cell.get_text(" ", strip=True).split())
+                    for cell in row.select("th, td")
+                ]
+                if any(cells):
+                    rows.append(" | ".join(cells))
+            text = " ; ".join(rows)[:MAX_PASSAGE_CHARS]
+            identity = text.casefold()
+            if len(text) >= 40 and identity not in seen:
+                seen.add(identity)
+                passages.append(
+                    DocumentPassage(text=text, locator=f"HTML table {table_number}")
+                )
         for block_number, node in enumerate(
             soup.select("main p, article p, main li, article li, p"), start=1
         ):
@@ -595,7 +625,7 @@ class AuthorityEvidenceAgent:
             passages.append(DocumentPassage(text=text, locator=f"HTML block {block_number}"))
             if len(passages) >= MAX_EXTRACTED_PASSAGES:
                 break
-        return passages
+        return passages[:MAX_EXTRACTED_PASSAGES]
 
     @staticmethod
     def _select_passages(

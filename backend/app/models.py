@@ -127,6 +127,22 @@ class EvidenceItem(BaseModel):
     authors: list[str] = Field(default_factory=list)
     published_at: str | None = None
     evidence_type: str
+    evidence_role: Literal[
+        "PROBLEM_CONTEXT",
+        "EXPOSURE_METHOD",
+        "INTERVENTION_EFFECT",
+        "OUTCOME_MONITORING",
+        "PUBLIC_OPINION",
+        "BACKGROUND",
+    ] = "BACKGROUND"
+    evaluation_design: Literal[
+        "DESCRIPTIVE",
+        "OUTCOME_MONITORING",
+        "EVIDENCE_SYNTHESIS",
+        "QUASI_EXPERIMENTAL",
+        "RANDOMIZED",
+        "NOT_ASSESSED",
+    ] = "NOT_ASSESSED"
     authority_tier: Literal["A", "B", "C", "D"] = "B"
     method_summary: str | None = None
     finding: str | None = None
@@ -180,6 +196,7 @@ class VerifiedClaim(BaseModel):
 class TaiwanApplicabilityAssessment(BaseModel):
     status: Literal[
         "TAIWAN_CONTEXT_WITH_LOCAL_INTERVENTION",
+        "TAIWAN_CONTEXT_WITH_LOCAL_OUTCOME_MONITORING",
         "TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE",
         "INSUFFICIENT_TAIWAN_CONTEXT",
     ]
@@ -187,8 +204,10 @@ class TaiwanApplicabilityAssessment(BaseModel):
     occupation_name: str | None = None
     taiwan_problem_context_supported: bool
     taiwan_intervention_effect_supported: bool
+    taiwan_local_outcome_monitoring_supported: bool = False
     local_context_source_ids: list[str] = Field(default_factory=list)
     local_research_evidence_ids: list[str] = Field(default_factory=list)
+    local_outcome_evidence_ids: list[str] = Field(default_factory=list)
     transfer_evidence_ids: list[str] = Field(default_factory=list)
     conclusion: str
     required_local_validation: list[str] = Field(default_factory=list)

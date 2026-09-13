@@ -39,7 +39,8 @@ require_evidence_synthesis=true，每案的 evidence_ids 必須逐一包含全�
 用本地需求、職務暴露與政策介入證據共同支撐方案，不得只挑其中一筆。
 每個 KPI 的 target 必須逐字使用 "pilot-defined"；除非輸入的
 allowed_percentage_values 明確列出，否則不得輸出百分比。
-找不到充分證據時，要在 limitations 說明，不能補造結論。國際研究只能作為可轉移機制；
+找不到充分證據時，要在 limitations 說明，不能補造結論。成果監測不等於因果效果；
+國際研究只能作為可轉移機制；
 若 taiwan_applicability 指出缺少台灣介入成效，每個選項都必須包含台灣本地試辦、驗證方法
 與停止條件，不得宣稱政策已在台灣被證明有效。"""
 
@@ -88,6 +89,8 @@ class BedrockPolicyService:
                         "authors",
                         "published_at",
                         "evidence_type",
+                        "evidence_role",
+                        "evaluation_design",
                         "authority_tier",
                         "doi",
                         "url",

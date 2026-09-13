@@ -281,3 +281,36 @@ Status: PASS
 - Final Bedrock regression on `run_1679245a9dd4`: `amazon.nova-lite-v1:0`, `is_fixture=false`, exactly three distinct policy options.
 - Deployed browser shows the 20–24 metric, source-specific processing ledger and transform `2026-09-12.2`; console has 0 errors and 0 warnings.
 - Integrated teammate UI 1.0 history and retained its reviewed Ministry of Labor snapshot helper and layout assets, but kept the production entry on the verified live-data Dashboard; the fixed snapshot and disabled policy report do not replace the working flow.
+
+## Submission-safe Taiwan evidence depth — 2026-09-13
+
+### Plan checkpoint
+
+Status: PASS
+
+- Goal: deepen the Taiwan policy evidence shown by the working Agent without publishing an unreviewed 18–35 estimate or an uncalibrated C/Risk score.
+- In scope: one official Taiwan programme-outcome source, structured evidence roles and evaluation designs, applicability gate, HTML-table extraction, policy prompt metadata, focused UI labels and regression tests.
+- Out of scope: precise 18–35 statistics without microdata; AIF-to-DGBAS industry/occupation crosswalk; complete Risk publication; AWS deployment.
+
+### Implementation and review checkpoint
+
+Status: PASS
+
+- Added the Legislative Yuan Budget Center review of Industry Newcomer programme outcomes as A-tier Taiwan outcome monitoring, including its no-comparison-group limitation.
+- The gate now separates Taiwan problem context, local outcome monitoring, and local causal intervention effects. Only a verified Taiwan source explicitly classified as quasi-experimental or randomized can mark local intervention effect as supported.
+- Default evidence selection now combines Taiwan outcome monitoring, ILO occupational exposure methodology, and ILO/World Bank intervention synthesis.
+- HTML tables are now eligible original-source passages, so outcome values inside government tables are not silently omitted.
+
+### Test checkpoint
+
+Status: PASS
+
+- Backend: `69 passed, 6 deselected`; Ruff passed.
+- Frontend: TypeScript/Vite production build passed; `29 passed`.
+- Live source check with the production HTTP client: Legislative Yuan URL returned 200 and yielded seven selectable passages; the extracted set contains the reported 81.34% outcome and the audit limitation.
+
+### Release checkpoint
+
+Status: NOT RUN
+
+- Changes are local. No push or AWS deployment was authorized in this turn.

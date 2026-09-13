@@ -26,13 +26,14 @@ describe('firstEvidenceSelection', () => {
   it('selects local context, exposure, and intervention evidence before live fallback', () => {
     const selected = firstEvidenceSelection([
       evidence('authority_taiwanjobs_ai_recruitment_survey_2024'),
+      evidence('authority_ly_industry_newcomer_outcomes_2024'),
       evidence('live_search_result', 'B', 'LIVE'),
       evidence('authority_ilo_refined_index_2025'),
       evidence('authority_ilo_worldbank_youth_almp_2026'),
     ])
 
     expect(selected).toEqual([
-      'authority_taiwanjobs_ai_recruitment_survey_2024',
+      'authority_ly_industry_newcomer_outcomes_2024',
       'authority_ilo_refined_index_2025',
       'authority_ilo_worldbank_youth_almp_2026',
     ])

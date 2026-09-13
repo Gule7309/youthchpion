@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.config import settings
+from app.evidence import curated_evidence
 from app.evidence_agent import AuthorityEvidenceAgent
 from app.http import HttpPayload
 from app.models import EvidenceItem, FreshnessStatus
@@ -25,6 +26,16 @@ class FakeHttp:
                 b"</p></main>"
             ),
         )
+
+
+def test_default_selection_covers_taiwan_outcome_exposure_and_intervention() -> None:
+    selected = AuthorityEvidenceAgent._default_selection(curated_evidence())
+
+    assert [item.evidence_id for item in selected] == [
+        "authority_ly_industry_newcomer_outcomes_2024",
+        "authority_ilo_refined_index_2025",
+        "authority_ilo_worldbank_youth_almp_2026",
+    ]
 
 
 @pytest.mark.asyncio
@@ -129,6 +140,108 @@ async def test_authority_agent_separates_taiwan_context_from_local_policy_effect
     assert "90 天台灣試辦" in result.taiwan_applicability.required_local_validation[0]
 
 
+@pytest.mark.asyncio
+async def test_authority_agent_distinguishes_local_outcome_monitoring_from_causal_effect(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.evidence_agent.settings",
+        replace(settings, bedrock_model_id="test-model", bedrock_min_interval_ms=0),
+    )
+    item = EvidenceItem(
+        evidence_id="authority_ly_industry_newcomer_outcomes_2024",
+        title="青年就業措施與產業新尖兵計畫執行情形",
+        institution="立法院預算中心",
+        published_at="2024-11-01",
+        evidence_type="government programme outcome monitoring",
+        evidence_role="OUTCOME_MONITORING",
+        evaluation_design="OUTCOME_MONITORING",
+        authority_tier="A",
+        method_summary="彙整行政資料的結訓人數與訓後就業率，沒有比較組。",
+        url="https://www.ly.gov.tw/Pages/Detail.aspx?nodeid=55824&pid=246190",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.VERSIONED,
+    )
+    agent = AuthorityEvidenceAgent(http=FakeHttp())
+    monkeypatch.setattr(
+        agent,
+        "_converse",
+        lambda _: json.dumps(
+            {
+                "supported": True,
+                "claim": "The programme reports post-training employment outcomes.",
+                "passage_index": 0,
+                "support": "direct",
+                "limitations": ["There is no comparison group."],
+            }
+        ),
+    )
+
+    result = await agent.verify(
+        "run_test",
+        "What youth employment outcomes were monitored?",
+        [item],
+        local_context={
+            "occupation_code": "4",
+            "occupation_name": "事務支援人員",
+            "source_ids": ["dgbas_employment", "mol_vacancy_history"],
+        },
+    )
+
+    assessment = result.taiwan_applicability
+    assert assessment.status == "TAIWAN_CONTEXT_WITH_LOCAL_OUTCOME_MONITORING"
+    assert assessment.taiwan_local_outcome_monitoring_supported is True
+    assert assessment.taiwan_intervention_effect_supported is False
+    assert assessment.local_outcome_evidence_ids == [item.evidence_id]
+    assert "不能單獨證明" in assessment.conclusion
+
+
+@pytest.mark.asyncio
+async def test_authority_agent_requires_causal_design_for_local_intervention_effect(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.evidence_agent.settings",
+        replace(settings, bedrock_model_id="test-model", bedrock_min_interval_ms=0),
+    )
+    item = EvidenceItem(
+        evidence_id="authority_taiwan_quasi_experiment",
+        title="台灣青年就業方案政策成效評估",
+        institution="台灣大學",
+        evidence_type="peer-reviewed article",
+        evidence_role="INTERVENTION_EFFECT",
+        evaluation_design="QUASI_EXPERIMENTAL",
+        authority_tier="B",
+        url="https://example.edu.tw/youth-study",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.VERSIONED,
+    )
+    agent = AuthorityEvidenceAgent(http=FakeHttp())
+    monkeypatch.setattr(
+        agent,
+        "_converse",
+        lambda _: json.dumps(
+            {
+                "supported": True,
+                "claim": "The study compares youth employment outcomes.",
+                "passage_index": 0,
+                "support": "direct",
+                "limitations": [],
+            }
+        ),
+    )
+
+    result = await agent.verify(
+        "run_test",
+        "What changes?",
+        [item],
+        local_context={"source_ids": ["dgbas_employment"]},
+    )
+
+    assert result.taiwan_applicability.status == "TAIWAN_CONTEXT_WITH_LOCAL_INTERVENTION"
+    assert result.taiwan_applicability.taiwan_intervention_effect_supported is True
+
+
 def test_passage_selection_filters_irrelevant_resume_statistics() -> None:
     item = EvidenceItem(
         evidence_id="authority_taiwanjobs_survey",
@@ -195,6 +308,42 @@ def test_passage_selection_allows_youth_intervention_evidence_without_ai_term() 
 
     assert len(selected) == 1
     assert "labour market programmes for youth" in selected[0].text
+
+
+def test_html_table_outcomes_are_available_to_evidence_verification() -> None:
+    item = EvidenceItem(
+        evidence_id="authority_local_outcomes",
+        title="青年就業措施與產業新尖兵計畫執行情形",
+        institution="立法院預算中心",
+        evidence_type="government programme outcome monitoring",
+        evidence_role="OUTCOME_MONITORING",
+        evaluation_design="OUTCOME_MONITORING",
+        authority_tier="A",
+        finding="112年度結訓5,926人，訓後就業率81.34%。",
+        policy_relevance=["台灣青年培訓", "訓後就業成果監測"],
+        url="https://www.ly.gov.tw/report",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.VERSIONED,
+    )
+    passages = AuthorityEvidenceAgent._passages(
+        (
+            "<main><table><tr><th>年度</th><th>結訓人數</th><th>就業率</th></tr>"
+            "<tr><td>112年度實際數</td><td>5,926</td><td>81.34%</td></tr>"
+            "</table></main>"
+        ).encode(),
+        "text/html",
+    )
+
+    selected = AuthorityEvidenceAgent._select_passages(
+        "台灣青年培訓有哪些本地成果？",
+        item,
+        passages,
+        3,
+    )
+
+    assert selected[0].locator == "HTML table 1"
+    assert "5,926" in selected[0].text
+    assert "81.34%" in selected[0].text
 
 
 @pytest.mark.asyncio

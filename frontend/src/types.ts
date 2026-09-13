@@ -74,6 +74,8 @@ export interface EvidenceItem {
   authors: string[]
   published_at?: string
   evidence_type: string
+  evidence_role?: 'PROBLEM_CONTEXT' | 'EXPOSURE_METHOD' | 'INTERVENTION_EFFECT' | 'OUTCOME_MONITORING' | 'PUBLIC_OPINION' | 'BACKGROUND'
+  evaluation_design?: 'DESCRIPTIVE' | 'OUTCOME_MONITORING' | 'EVIDENCE_SYNTHESIS' | 'QUASI_EXPERIMENTAL' | 'RANDOMIZED' | 'NOT_ASSESSED'
   authority_tier: 'A' | 'B' | 'C' | 'D'
   method_summary?: string
   finding?: string
@@ -149,13 +151,15 @@ export interface VerifiedClaim {
 }
 
 export interface TaiwanApplicabilityAssessment {
-  status: 'TAIWAN_CONTEXT_WITH_LOCAL_INTERVENTION' | 'TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE' | 'INSUFFICIENT_TAIWAN_CONTEXT'
+  status: 'TAIWAN_CONTEXT_WITH_LOCAL_INTERVENTION' | 'TAIWAN_CONTEXT_WITH_LOCAL_OUTCOME_MONITORING' | 'TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE' | 'INSUFFICIENT_TAIWAN_CONTEXT'
   occupation_code?: string
   occupation_name?: string
   taiwan_problem_context_supported: boolean
   taiwan_intervention_effect_supported: boolean
+  taiwan_local_outcome_monitoring_supported?: boolean
   local_context_source_ids: string[]
   local_research_evidence_ids: string[]
+  local_outcome_evidence_ids?: string[]
   transfer_evidence_ids: string[]
   conclusion: string
   required_local_validation: string[]

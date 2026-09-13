@@ -43,6 +43,20 @@ const time = (value?: string) => value
 const evidenceText = (value?: string) => value
   ? value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
   : '目前只有索引 metadata；Agent 不會把它直接當成主張證據。'
+const evidenceRole = (value?: EvidenceItem['evidence_role']) => ({
+  PROBLEM_CONTEXT: '問題脈絡',
+  EXPOSURE_METHOD: '暴露方法',
+  INTERVENTION_EFFECT: '介入效果研究',
+  OUTCOME_MONITORING: '台灣成果監測',
+  PUBLIC_OPINION: '公眾感受',
+  BACKGROUND: '背景資料',
+}[value ?? 'BACKGROUND'])
+const applicabilityStatus = (value: EvidenceVerification['taiwan_applicability']['status']) => ({
+  TAIWAN_CONTEXT_WITH_LOCAL_INTERVENTION: '台灣脈絡＋本地介入效果',
+  TAIWAN_CONTEXT_WITH_LOCAL_OUTCOME_MONITORING: '台灣脈絡＋本地成果監測',
+  TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE: '台灣脈絡＋國際轉移證據',
+  INSUFFICIENT_TAIWAN_CONTEXT: '台灣脈絡不足',
+}[value])
 
 const SOURCE_NAMES: Record<string, string> = {
   dgbas_employment: '主計總處／20–24 歲就業結構',
@@ -87,7 +101,7 @@ function indicator(signal: OccupationSignal, id: string) {
 }
 
 export function firstEvidenceSelection(items: EvidenceItem[]) {
-  const preferredKeys = ['taiwanjobs_ai_recruitment', 'refined_index', 'youth_almp']
+  const preferredKeys = ['industry_newcomer_outcomes', 'refined_index', 'youth_almp']
   const preferred = preferredKeys
     .map((key) => items.find((item) => item.evidence_id.includes(key)))
     .filter((item): item is EvidenceItem => Boolean(item))
@@ -360,12 +374,12 @@ export default function App() {
 
     if (index === 3) return <section className="panel" id="research" aria-labelledby="research-title">
       <div className="panel__header"><div><div className="section-kicker"><Icon name="book" />權威證據 AGENT</div><h2 id="research-title">即時檢索、取回原文、核對主張</h2></div><button className="button button--ghost" onClick={runSearch} disabled={Boolean(busy)}>{busy === 'SEARCHING' ? '檢索中…' : '重新即時檢索'}</button></div>
-      <div className="policy-evidence-list">{evidence.slice(0, 8).map((item) => <label className="policy-evidence" key={item.evidence_id}><input type="checkbox" checked={selectedEvidence.includes(item.evidence_id)} onChange={() => { setSelectedEvidence((current) => current.includes(item.evidence_id) ? current.filter((id) => id !== item.evidence_id) : [...current, item.evidence_id].slice(-3)); setVerification(null); setPolicy(null) }} /><span><b>{item.title}</b><em>{item.authority_tier} 級候選 · {item.institution} · {item.discovery_source ?? '既有資料'} · {item.freshness}</em><p>{evidenceText(item.finding)}</p><a href={item.url} target="_blank" rel="noreferrer">查看候選來源 <Icon name="external" /></a></span></label>)}</div>
+      <div className="policy-evidence-list">{evidence.slice(0, 8).map((item) => <label className="policy-evidence" key={item.evidence_id}><input type="checkbox" checked={selectedEvidence.includes(item.evidence_id)} onChange={() => { setSelectedEvidence((current) => current.includes(item.evidence_id) ? current.filter((id) => id !== item.evidence_id) : [...current, item.evidence_id].slice(-3)); setVerification(null); setPolicy(null) }} /><span><b>{item.title}</b><em>{item.authority_tier} 級候選 · {evidenceRole(item.evidence_role)} · {item.institution} · {item.discovery_source ?? '既有資料'} · {item.freshness}</em><p>{evidenceText(item.finding)}</p><a href={item.url} target="_blank" rel="noreferrer">查看候選來源 <Icon name="external" /></a></span></label>)}</div>
       <button className="button" onClick={runVerification} disabled={Boolean(busy) || !selectedEvidence.length}>{busy === 'VERIFYING' ? '搜尋與 BEDROCK 核對中…' : '執行權威證據 Agent'}</button>
       {verification && <div className="agent-result">
         <span className={`status status--${verification.status.toLowerCase()}`}>{verification.status}</span>
         <p>{verification.agent_steps.join(' → ')}</p>
-        <div className="policy-notice" role="status"><Icon name="info" /><span><b>台灣適用性：{verification.taiwan_applicability.status}</b><br />{verification.taiwan_applicability.conclusion}</span></div>
+        <div className="policy-notice" role="status"><Icon name="info" /><span><b>台灣適用性：{applicabilityStatus(verification.taiwan_applicability.status)}</b><br />{verification.taiwan_applicability.conclusion}</span></div>
         {verification.taiwan_applicability.required_local_validation.length > 0 && <details><summary>查看必要的台灣本地驗證</summary><ol>{verification.taiwan_applicability.required_local_validation.map((item) => <li key={item}>{item}</li>)}</ol></details>}
         {verification.harness && <p className="policy-muted">Harness {verification.harness.prompt_version} · 最多 {verification.harness.max_sources} 個來源／每來源 {verification.harness.max_passages_per_source} 段／{verification.harness.deadline_seconds} 秒 · 本次 {verification.harness.duration_ms} ms、{verification.harness.input_tokens + verification.harness.output_tokens} tokens</p>}
         {verification.claims.map((claim) => <details data-memory={claim.claim_id} key={claim.claim_id}><summary>已通過原文認證：{claim.claim}</summary><blockquote>{claim.excerpt}</blockquote><small>{claim.locator} · {claim.support} · {claim.geographic_scope}{claim.content_sha256 ? ` · SHA-256 ${claim.content_sha256.slice(0, 12)}…` : ''}</small><p className="policy-muted">台灣適用性：{claim.applicability_reason}</p>{claim.authority_basis && <p className="policy-muted">認證依據：{claim.authority_basis}</p>}{claim.retrieved_url && <a href={claim.retrieved_url} target="_blank" rel="noreferrer">查看實際取回頁面 <Icon name="external" /></a>}</details>)}

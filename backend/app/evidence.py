@@ -19,6 +19,8 @@ CURATED_EVIDENCE = [
         "institution": "勞動部勞動力發展署／台灣就業通",
         "published_at": "2024-12-02",
         "evidence_type": "government labour-market survey",
+        "evidence_role": "PROBLEM_CONTEXT",
+        "evaluation_design": "DESCRIPTIVE",
         "authority_tier": "A",
         "method_summary": (
             "台灣雇主與平台會員調查，533 份有效樣本；依公司規模與地區加權，"
@@ -36,11 +38,37 @@ CURATED_EVIDENCE = [
         "url": "https://event.taiwanjobs.gov.tw/2024/survey/02/index.html",
     },
     {
+        "key": "ly_industry_newcomer_outcomes_2024",
+        "title": "青年就業措施與產業新尖兵計畫執行情形",
+        "institution": "立法院預算中心",
+        "published_at": "2024-11-01",
+        "evidence_type": "government programme outcome monitoring",
+        "evidence_role": "OUTCOME_MONITORING",
+        "evaluation_design": "OUTCOME_MONITORING",
+        "authority_tier": "A",
+        "method_summary": (
+            "立法院預算評估彙整勞動力發展署行政資料，逐年列出產業新尖兵計畫的"
+            "開訓、結訓與訓後就業率，並納入審計機關對後續就業品質的意見。"
+        ),
+        "finding": (
+            "產業新尖兵112年度結訓5,926人，訓後就業率81.34%；報告同時指出部分"
+            "學員未就業、從事部分工時或薪資未臻理想，要求持續追蹤就業品質。"
+        ),
+        "policy_relevance": ["台灣青年培訓", "訓後就業成果監測", "審計限制"],
+        "limitations": (
+            "屬行政成果監測，沒有未參訓比較組，不能排除景氣、參訓者差異或其他政策"
+            "影響，也不能單獨證明AI技能培訓造成就業改善。"
+        ),
+        "url": "https://www.ly.gov.tw/Pages/Detail.aspx?nodeid=55824&pid=246190",
+    },
+    {
         "key": "ilo_refined_index_2025",
         "title": "Generative AI and Jobs: A Refined Global Index of Occupational Exposure",
         "institution": "International Labour Organization",
         "published_at": "2025-05-20",
         "evidence_type": "international technical report",
+        "evidence_role": "EXPOSURE_METHOD",
+        "evaluation_design": "DESCRIPTIVE",
         "authority_tier": "A",
         "method_summary": "Task-level exposure scoring across 436 detailed ISCO-08 occupations.",
         "finding": (
@@ -60,6 +88,8 @@ CURATED_EVIDENCE = [
         "institution": "ILO / World Bank",
         "published_at": "2026",
         "evidence_type": "evidence synthesis",
+        "evidence_role": "INTERVENTION_EFFECT",
+        "evaluation_design": "EVIDENCE_SYNTHESIS",
         "authority_tier": "A",
         "method_summary": "Evidence synthesis on active labour-market programme designs for youth.",
         "finding": (
@@ -76,6 +106,8 @@ CURATED_EVIDENCE = [
         "institution": "OECD",
         "published_at": "2024",
         "evidence_type": "international policy paper",
+        "evidence_role": "BACKGROUND",
+        "evaluation_design": "DESCRIPTIVE",
         "authority_tier": "A",
         "method_summary": (
             "Cross-country analysis of online job postings and AI-related skill demand."
@@ -97,6 +129,8 @@ CURATED_EVIDENCE = [
         "institution": "數位發展部",
         "published_at": "2026-01-13",
         "evidence_type": "government public-opinion survey",
+        "evidence_role": "PUBLIC_OPINION",
+        "evaluation_design": "DESCRIPTIVE",
         "authority_tier": "A",
         "method_summary": "全國數位近用調查；Dashboard 使用其中 20–29 歲就業網路族分組。",
         "finding": "青年對工作可能受自動化或 AI 取代的主觀感受可作政策溝通訊號。",
@@ -110,6 +144,8 @@ CURATED_EVIDENCE = [
         "institution": "104 人力銀行",
         "published_at": "2025",
         "evidence_type": "enterprise labour-market survey",
+        "evidence_role": "PROBLEM_CONTEXT",
+        "evaluation_design": "DESCRIPTIVE",
         "authority_tier": "C",
         "method_summary": "104 招募資料的 AI 關鍵字與職缺趨勢分析。",
         "finding": "企業 AI 人才需求已跨出純研發職缺，需與官方就業結構交叉驗證。",
@@ -235,6 +271,8 @@ def curated_evidence() -> list[EvidenceItem]:
             institution=item["institution"],
             published_at=item["published_at"],
             evidence_type=item["evidence_type"],
+            evidence_role=item["evidence_role"],
+            evaluation_design=item["evaluation_design"],
             authority_tier=item["authority_tier"],
             method_summary=item["method_summary"],
             finding=item["finding"],
