@@ -253,7 +253,7 @@ export default function App() {
         occupation_code: selected.code,
         evidence_ids: selectedEvidence.slice(0, 3),
         search_query: researchQuery(selected),
-        question: `${selected.name}在生成式 AI 轉型下需要哪些青年就業政策？`,
+        question: `請核對${selected.name}在生成式 AI 轉型下的技能需求、職務暴露，以及可供台灣青年就業政策採用的介入研究。`,
       })
       setEvidence(value.searched_candidates)
       setSelectedEvidence(value.approved_evidence_ids)

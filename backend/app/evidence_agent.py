@@ -268,8 +268,8 @@ class AuthorityEvidenceAgent:
             if self._normalise_text(claim) == self._normalise_text(question):
                 gaps.append(f"{item.title}: Bedrock 將問題重述為主張，已拒絕發布")
                 continue
-            if not self._passage_meets_question(question, excerpt.text):
-                gaps.append(f"{item.title}: 選取段落未通過 AI 就業主題相關性閘門")
+            if not self._passage_meets_question(question, excerpt.text, item):
+                gaps.append(f"{item.title}: 選取段落未通過該證據角色的主題相關性閘門")
                 continue
             claim_id = f"claim-{index}"
             harness_excerpt = HarnessExcerpt(
@@ -621,14 +621,35 @@ class AuthorityEvidenceAgent:
         topical = [
             passage
             for passage in passages
-            if AuthorityEvidenceAgent._passage_meets_question(question, passage.text)
+            if AuthorityEvidenceAgent._passage_meets_question(question, passage.text, item)
         ]
         candidates = topical or passages
 
-        def relevance(indexed: tuple[int, DocumentPassage]) -> tuple[int, int]:
+        def relevance(indexed: tuple[int, DocumentPassage]) -> tuple[int, int, int]:
             index, passage = indexed
             passage_terms = AuthorityEvidenceAgent._search_terms(passage.text)
-            return len(terms & passage_terms), -index
+            passage_folded = passage.text.casefold()
+            decision_markers = (
+                "技能",
+                "培訓",
+                "試辦",
+                "政策",
+                "成效",
+                "skill",
+                "training",
+                "programme",
+                "program",
+                "intervention",
+                "evaluation",
+            )
+            resume_only_penalty = int(
+                any(marker in passage_folded for marker in ("履歷", "resume", "cv"))
+                and not any(marker in passage_folded for marker in decision_markers)
+            )
+            decision_signal = sum(
+                marker in passage_folded for marker in decision_markers
+            ) - (3 * resume_only_penalty)
+            return decision_signal, len(terms & passage_terms), -index
 
         ranked = sorted(enumerate(candidates), key=relevance, reverse=True)
         return [passage for _, passage in ranked[:limit]]
@@ -649,14 +670,48 @@ class AuthorityEvidenceAgent:
         return terms
 
     @staticmethod
-    def _passage_meets_question(question: str, passage: str) -> bool:
+    def _is_intervention_evidence(item: EvidenceItem | None) -> bool:
+        if item is None:
+            return False
+        context = " ".join(
+            (
+                item.title,
+                item.evidence_type,
+                item.method_summary or "",
+                item.finding or "",
+                " ".join(item.policy_relevance),
+            )
+        ).casefold()
+        return any(
+            marker in context
+            for marker in (
+                "active labour market",
+                "active labor market",
+                "programme",
+                "program evaluation",
+                "intervention",
+                "impact evaluation",
+                "政策介入",
+                "青年就業方案",
+                "試辦評估",
+                "培訓成效",
+            )
+        )
+
+    @staticmethod
+    def _passage_meets_question(
+        question: str,
+        passage: str,
+        item: EvidenceItem | None = None,
+    ) -> bool:
         question_folded = question.casefold()
         passage_folded = passage.casefold()
+        is_intervention_evidence = AuthorityEvidenceAgent._is_intervention_evidence(item)
         asks_about_ai = any(
             marker in question_folded
             for marker in (" ai ", "ai轉型", "生成式", "人工智慧", "generative ai")
         )
-        if asks_about_ai and not any(
+        if asks_about_ai and not is_intervention_evidence and not any(
             marker in passage_folded
             for marker in (
                 " ai ",

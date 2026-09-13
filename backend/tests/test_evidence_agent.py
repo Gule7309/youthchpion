@@ -164,6 +164,39 @@ def test_passage_selection_filters_irrelevant_resume_statistics() -> None:
     assert "AI 相關技能" in selected[0].text
 
 
+def test_passage_selection_allows_youth_intervention_evidence_without_ai_term() -> None:
+    item = EvidenceItem(
+        evidence_id="authority_ilo_worldbank_almp",
+        title="The impact of active labour market programmes for youth",
+        institution="ILO / World Bank",
+        evidence_type="evidence synthesis",
+        method_summary="Evidence synthesis on active labour-market programme designs for youth.",
+        finding="Compare training and employment services with explicit evaluation.",
+        policy_relevance=["青年就業方案", "試辦評估", "政策組合"],
+        url="https://ilo.org/youth-almp",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.VERSIONED,
+    )
+    passages = AuthorityEvidenceAgent._passages(
+        (
+            b"<main><p>Active labour market programmes for youth combine training, "
+            b"employment services and wage subsidies. Programme design and local labour "
+            b"market conditions influence employment outcomes.</p></main>"
+        ),
+        "text/html",
+    )
+
+    selected = AuthorityEvidenceAgent._select_passages(
+        "事務支援人員在生成式 AI 轉型下需要哪些青年就業政策？",
+        item,
+        passages,
+        12,
+    )
+
+    assert len(selected) == 1
+    assert "labour market programmes for youth" in selected[0].text
+
+
 @pytest.mark.asyncio
 async def test_authority_agent_rejects_question_copied_as_claim(monkeypatch) -> None:
     monkeypatch.setattr(
