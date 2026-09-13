@@ -129,6 +129,80 @@ async def test_authority_agent_separates_taiwan_context_from_local_policy_effect
     assert "90 天台灣試辦" in result.taiwan_applicability.required_local_validation[0]
 
 
+def test_passage_selection_filters_irrelevant_resume_statistics() -> None:
+    item = EvidenceItem(
+        evidence_id="authority_taiwanjobs_survey",
+        title="2024 AI世代的求才條件大調查",
+        institution="台灣就業通",
+        evidence_type="government labour-market survey",
+        url="https://event.taiwanjobs.gov.tw/2024/survey/02/index.html",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.VERSIONED,
+    )
+    passages = [
+        AuthorityEvidenceAgent._passages(
+            (
+                "<main><p>調查顯示履歷的重要資訊以基本資料為最高，"
+                "其次為學經歷與自述專業能力，作為一般招募背景。這段只描述履歷內容，"
+                "沒有衡量新興科技技能、青年就業或任何政策介入成效。</p>"
+                "<p>面對 AI 世代，調查詢問企業目前求職者具備 AI 相關技能的"
+                "重要程度，提供台灣人才需求脈絡。這項雇主調查可用來設計技能試辦，"
+                "但不是青年專屬樣本，也不能證明培訓政策的因果成效。</p></main>"
+            ).encode(),
+            "text/html",
+        )
+    ][0]
+
+    selected = AuthorityEvidenceAgent._select_passages(
+        "事務支援人員在生成式 AI 轉型下需要哪些青年就業政策？",
+        item,
+        passages,
+        12,
+    )
+
+    assert len(selected) == 1
+    assert "AI 相關技能" in selected[0].text
+
+
+@pytest.mark.asyncio
+async def test_authority_agent_rejects_question_copied_as_claim(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.evidence_agent.settings",
+        replace(settings, bedrock_model_id="test-model", bedrock_min_interval_ms=0),
+    )
+    question = "事務支援人員在生成式 AI 轉型下需要哪些青年就業政策？"
+    item = EvidenceItem(
+        evidence_id="authority_ilo",
+        title="Generative AI and Jobs",
+        institution="International Labour Organization",
+        evidence_type="international technical report",
+        authority_tier="A",
+        url="https://ilo.org/report",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.VERSIONED,
+    )
+    agent = AuthorityEvidenceAgent(http=FakeHttp())
+    monkeypatch.setattr(
+        agent,
+        "_converse",
+        lambda _: json.dumps(
+            {
+                "supported": True,
+                "claim": question,
+                "passage_index": 0,
+                "support": "direct",
+                "limitations": [],
+            },
+            ensure_ascii=False,
+        ),
+    )
+
+    result = await agent.verify("run_test", question, [item])
+
+    assert not result.claims
+    assert "問題重述為主張" in result.gaps[0]
+
+
 @pytest.mark.asyncio
 async def test_authority_agent_runs_live_search_before_verification(monkeypatch) -> None:
     monkeypatch.setattr(
