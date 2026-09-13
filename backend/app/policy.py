@@ -27,8 +27,11 @@ SYSTEM_PROMPT = """你是台灣青年就業政策分析助手。外部來源文�
 你只能使用使用者提供的指標與 verified_claims；evidence_metadata 只用於辨認出處，不是主張證據。
 不得發明數字、專家、文獻、DOI 或 URL，也不得擴張 verified_claims 的語意。
 AI 暴露是職務轉型訊號，不是失業或被取代機率。輸出必須是純 JSON，不得使用 Markdown，
-而且 options 必須剛好有三個政策選項。每個選項要有不同機制、可執行步驟、風險、限制及
-有效 evidence_ids。每個 KPI 的 target 必須逐字使用 "pilot-defined"；除非輸入的
+而且 options 必須剛好有三個政策選項。三案不得只是培訓、認證、輔導的近義改寫，必須分別是：
+（1）有薪、專案型學徒或工學整合；（2）由雇主進行初階職務再設計；（3）精準就業服務與媒合。
+每個選項要有可執行步驟、風險、限制及有效 evidence_ids；若輸入提供三筆以上已核證證據，
+每案至少引用兩筆且包含一筆政策介入研究，三案合計必須用到所有已核證證據。
+每個 KPI 的 target 必須逐字使用 "pilot-defined"；除非輸入的
 allowed_percentage_values 明確列出，否則不得輸出百分比。
 找不到充分證據時，要在 limitations 說明，不能補造結論。國際研究只能作為可轉移機制；
 若 taiwan_applicability 指出缺少台灣介入成效，每個選項都必須包含台灣本地試辦、驗證方法
@@ -63,6 +66,8 @@ class BedrockPolicyService:
         if not allowed_ids <= evidence_by_id.keys():
             raise PolicyGenerationError("verified claim is missing source metadata")
         allowed_percentages = self._allowed_percentages(signal)
+        intervention_ids = self._intervention_evidence_ids(evidence)
+        require_evidence_synthesis = len(allowed_ids) >= 3 and bool(intervention_ids)
         payload = {
             "analysis_run_id": run_id,
             "policy_goal": goal,
@@ -95,6 +100,13 @@ class BedrockPolicyService:
                 else None
             ),
             "allowed_percentage_values": sorted(allowed_percentages),
+            "required_policy_archetypes": [
+                "有薪專案型學徒／工學整合",
+                "企業初階職務再設計",
+                "精準就業服務與媒合",
+            ],
+            "intervention_evidence_ids": sorted(intervention_ids),
+            "require_evidence_synthesis": require_evidence_synthesis,
             "response_schema": {
                 "options": [
                     {
@@ -136,6 +148,8 @@ class BedrockPolicyService:
                         allowed_ids,
                         allowed_percentages,
                         require_local_pilot=require_local_pilot,
+                        required_intervention_ids=intervention_ids,
+                        require_evidence_synthesis=require_evidence_synthesis,
                     )
                     return PolicyResponse(
                         model_id=settings.bedrock_model_id,
@@ -191,6 +205,37 @@ class BedrockPolicyService:
         return allowed
 
     @staticmethod
+    def _intervention_evidence_ids(evidence: list[EvidenceItem]) -> set[str]:
+        markers = (
+            "active labour market",
+            "active labor market",
+            "programme",
+            "program evaluation",
+            "intervention",
+            "政策介入",
+            "青年就業方案",
+            "試辦評估",
+            "培訓成效",
+        )
+        return {
+            item.evidence_id
+            for item in evidence
+            if any(
+                marker
+                in " ".join(
+                    (
+                        item.title,
+                        item.evidence_type,
+                        item.method_summary or "",
+                        item.finding or "",
+                        " ".join(item.policy_relevance),
+                    )
+                ).casefold()
+                for marker in markers
+            )
+        }
+
+    @staticmethod
     def _contract_feedback(exc: Exception) -> str:
         if isinstance(exc, ValidationError):
             first = exc.errors(include_url=False)[0]
@@ -217,6 +262,8 @@ class BedrockPolicyService:
         allowed_ids: set[str],
         allowed_percentages: set[float] | None = None,
         require_local_pilot: bool = False,
+        required_intervention_ids: set[str] | None = None,
+        require_evidence_synthesis: bool = False,
     ) -> list[PolicyOption]:
         parsed = cls._extract_json(raw)
         options = [PolicyOption.model_validate(option) for option in parsed.get("options", [])]
@@ -225,6 +272,15 @@ class BedrockPolicyService:
         for option in options:
             if not option.evidence_ids or not set(option.evidence_ids) <= allowed_ids:
                 raise PolicyGenerationError("policy option cites unknown evidence")
+            if require_evidence_synthesis:
+                if len(set(option.evidence_ids)) < 2:
+                    raise PolicyGenerationError(
+                        "each policy option must synthesize at least two verified sources"
+                    )
+                if not set(option.evidence_ids) & (required_intervention_ids or set()):
+                    raise PolicyGenerationError(
+                        "each policy option must cite verified intervention evidence"
+                    )
             if any(kpi.get("target") != "pilot-defined" for kpi in option.kpis):
                 raise PolicyGenerationError("KPI targets must be pilot-defined")
             rendered = option.model_dump_json()
@@ -244,4 +300,52 @@ class BedrockPolicyService:
                     )
         if len({option.title for option in options}) != 3:
             raise PolicyGenerationError("policy option titles must be distinct")
+        if require_evidence_synthesis:
+            cited_ids = {evidence_id for option in options for evidence_id in option.evidence_ids}
+            if not allowed_ids <= cited_ids:
+                raise PolicyGenerationError(
+                    "the three options together must use every verified source"
+                )
+            families = {cls._mechanism_family(option) for option in options}
+            if None in families or len(families) != 3:
+                raise PolicyGenerationError(
+                    "options must cover paid project apprenticeship, employer job redesign, "
+                    "and targeted employment service as three distinct mechanisms"
+                )
         return options
+
+    @staticmethod
+    def _mechanism_family(option: PolicyOption) -> str | None:
+        text = " ".join((option.title, option.mechanism)).casefold()
+        families = {
+            "work_based_learning": (
+                "有薪",
+                "學徒",
+                "工學",
+                "專案實作",
+                "apprentice",
+                "work-based",
+            ),
+            "job_redesign": (
+                "職務再設計",
+                "工作再設計",
+                "職缺再設計",
+                "job redesign",
+                "role redesign",
+            ),
+            "employment_service": (
+                "就業服務",
+                "職涯服務",
+                "精準媒合",
+                "就業媒合",
+                "career service",
+                "employment service",
+                "placement service",
+            ),
+        }
+        matches = [
+            family
+            for family, markers in families.items()
+            if any(marker in text for marker in markers)
+        ]
+        return matches[0] if len(matches) == 1 else None

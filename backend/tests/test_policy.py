@@ -114,6 +114,47 @@ def test_policy_contract_requires_taiwan_pilot_for_transfer_evidence() -> None:
     ) == 3
 
 
+def test_policy_contract_requires_distinct_mechanisms_and_evidence_synthesis() -> None:
+    evidence_ids = {"local", "exposure", "intervention"}
+    apprenticeship = option("intervention", "有薪專案型學徒制")
+    apprenticeship["evidence_ids"] = ["local", "intervention"]
+    redesign = option("intervention", "企業初階職務再設計")
+    redesign["evidence_ids"] = ["exposure", "intervention"]
+    employment_service = option("intervention", "精準就業服務與媒合")
+    employment_service["evidence_ids"] = ["local", "exposure", "intervention"]
+    raw = json.dumps(
+        {"options": [apprenticeship, redesign, employment_service]},
+        ensure_ascii=False,
+    )
+
+    result = BedrockPolicyService._validate(
+        raw,
+        evidence_ids,
+        required_intervention_ids={"intervention"},
+        require_evidence_synthesis=True,
+    )
+
+    assert len(result) == 3
+
+
+def test_policy_contract_rejects_three_near_duplicate_training_options() -> None:
+    evidence_ids = {"local", "exposure", "intervention"}
+    options = []
+    for title in ("AI 技能培訓", "AI 技能認證", "AI 線上課程"):
+        value = option("intervention", title)
+        value["evidence_ids"] = ["local", "intervention"]
+        options.append(value)
+    options[0]["evidence_ids"].append("exposure")
+
+    with pytest.raises(PolicyGenerationError, match="three distinct mechanisms"):
+        BedrockPolicyService._validate(
+            json.dumps({"options": options}, ensure_ascii=False),
+            evidence_ids,
+            required_intervention_ids={"intervention"},
+            require_evidence_synthesis=True,
+        )
+
+
 @pytest.mark.asyncio
 async def test_policy_generation_corrects_an_invalid_first_contract(monkeypatch) -> None:
     monkeypatch.setattr(
