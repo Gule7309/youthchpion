@@ -41,6 +41,23 @@ def test_policy_contract_requires_three_options_and_known_evidence() -> None:
     assert len(result) == 3
 
 
+def test_policy_contract_removes_schema_instruction_from_mechanism() -> None:
+    raw = json.dumps(
+        {
+            "options": [
+                option(mechanism="must implement: 企業共訓"),
+                option(mechanism="職務再設計"),
+                option(mechanism="媒合"),
+            ]
+        },
+        ensure_ascii=False,
+    )
+
+    result = BedrockPolicyService._validate(raw, {"ev_1"})
+
+    assert result[0].mechanism == "企業共訓"
+
+
 def test_policy_contract_rejects_unknown_citation() -> None:
     raw = json.dumps(
         {

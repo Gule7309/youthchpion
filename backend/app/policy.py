@@ -275,6 +275,19 @@ class BedrockPolicyService:
     ) -> list[PolicyOption]:
         parsed = cls._extract_json(raw)
         options = [PolicyOption.model_validate(option) for option in parsed.get("options", [])]
+        options = [
+            option.model_copy(
+                update={
+                    "mechanism": re.sub(
+                        r"^must implement:\s*",
+                        "",
+                        option.mechanism,
+                        flags=re.IGNORECASE,
+                    )
+                }
+            )
+            for option in options
+        ]
         if len(options) != 3:
             raise PolicyGenerationError("exactly three policy options are required")
         for option in options:
