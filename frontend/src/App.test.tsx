@@ -105,7 +105,7 @@ describe('App', () => {
     render(<App />)
 
     expect((await screen.findAllByText(/主計總處／20–24 歲就業結構/)).length).toBeGreaterThan(0)
-    expect(screen.getByText('實驗性結構暴露')).toBeInTheDocument()
+    expect(screen.getAllByText('實驗性結構暴露').length).toBeGreaterThan(0)
     expect(screen.getAllByText(/70.7/).length).toBeGreaterThan(0)
     expect(screen.getByText('建立主分析族群與比較組。')).toBeInTheDocument()
     expect(screen.getByText('職業大類資料不能解讀為失業人數。')).toBeInTheDocument()

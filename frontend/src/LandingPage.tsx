@@ -6,7 +6,7 @@ import './landing.css'
 
 const steps: { name: string; icon: IconName; text: string }[] = [
   { name: '指標', icon: 'formula', text: '查看指標怎麼計算、用了哪些資料。' },
-  { name: '排名', icon: 'chart', text: '比較各職業的求才變化。風險分數尚待核定。' },
+  { name: '排名', icon: 'chart', text: '依結構暴露比較職業，並對照求才變化。' },
   { name: '診斷', icon: 'sparkles', text: '了解判讀理由，以及目前還不能下的結論。' },
   { name: '論證', icon: 'book', text: '核對資料與研究原文，確認能支持哪些判斷。' },
   { name: '政策', icon: 'report', text: '查看政策依據，把已有資料整理成會議草稿。' },
@@ -59,7 +59,7 @@ export function LandingPage() {
       <section className="landing-flow" id="home-flow" aria-labelledby="flow-title"><div className="landing-section-heading"><h2 id="flow-title">進入後，可以看這五個分頁。</h2><p>點上方導覽列或側邊檔案夾切換，從你需要的內容開始看。</p></div><ol>{steps.map((step, i) => <li key={step.name}><span className="landing-step-number">0{i + 1}</span><Icon name={step.icon} /><h3>{step.name}</h3><p>{step.text}</p></li>)}</ol></section>
       <section className="landing-trust" id="home-trust" aria-labelledby="trust-title"><div><Icon name="book" /><h2 id="trust-title">使用前，先了解<br />這份資料的限制。</h2><p>缺少的數值與政策依據會標示為待補，不會用示意資料代替。頁面引用的機構沒有因此為 rescueBill 背書。</p></div><dl>
         <div><dt>現在能用哪些功能？</dt><dd>查看三個職業的官方求才趨勢與判讀說明，也可以把已有內容整理成會議草稿。草稿由瀏覽器整理，不是 AI 生成的政策建議。</dd></div>
-        <div><dt>哪些還沒完成？</dt><dd>完整的 AI 風險指標、各職業的政策依據與 AI 報告服務仍在建置。風險分數（Risk）尚未核定，目前不評分、不排名。</dd></div>
+        <div><dt>哪些還沒完成？</dt><dd>18–35 歲完整資料、職業層級 AI 導入訊號、各職業的政策依據與 AI 報告服務仍在建置。目前先以已核對的結構暴露比較職業。</dd></div>
         <div><dt>這是 18–35 歲的資料嗎？</dt><dd>不是。18–35 歲是模型預計分析的族群，目前預覽的求才資料涵蓋全年齡，不能當成這個年齡層的就業結果。</dd></div>
       </dl></section>
       <section className="landing-bottom"><div><h2>先選一個職業，看看求才變化。</h2><p>進入後可以切換職業，查看數據與來源。</p></div><EnterLink /></section>
