@@ -115,13 +115,14 @@ def test_dashboard_calculates_youth_share_from_youth_total() -> None:
     assert professional.transformation_priority_score == pytest.approx(24.5, abs=0.1)
     assert clerical.transformation_priority_score == pytest.approx(45.8, abs=0.1)
     assert professional.structural_exposure_score == professional.transformation_priority_score
-    assert professional.complete_risk_score is None
-    assert professional.score_status == "MISSING_C"
+    assert professional.score_status == "EXPERIMENTAL"
+    assert professional.score_formula == "100 × sqrt(A × B)"
     assert professional.data_confidence == "MEDIUM"
     assert dashboard.summary_metrics["youth_employed_20_24"] == 100
     assert dashboard.summary_metrics["youth_employed_25_29"] == 100
     assert dashboard.cleaning_summary.crosswalk_coverage == 1.0
-    assert dashboard.summary_metrics["risk_status"] == "MISSING_C"
+    assert dashboard.summary_metrics["score_status"] == "EXPERIMENTAL"
+    assert dashboard.summary_metrics["score_formula"] == "100 × sqrt(A × B)"
     assert dashboard.industry_context == [{"title": "AI 採用調查"}]
     assert dashboard.public_opinion == [
         {"label": "青年主觀感受", "value": 35.0, "survey_year": 2025}
@@ -209,3 +210,5 @@ def test_dashboard_withholds_d_when_ai_positive_mapping_coverage_is_low() -> Non
     assert signal.ai_entry_opportunity_status == "LOW_AI_MAPPING_COVERAGE"
     assert signal.ai_subsample_mapping_coverage == 0.0
     assert signal.data_confidence == "LOW"
+    assert signal.structural_exposure_score == pytest.approx(24.5, abs=0.1)
+    assert signal.score_status == "EXPERIMENTAL"

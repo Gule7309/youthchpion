@@ -33,7 +33,7 @@ describe('Landing page and dashboard entry', () => {
     go('#indicators')
     expect(await screen.findByRole('tab', { name: '指標' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('link', { name: '返回 rescueBill 首頁' })).toHaveAttribute('href', '#home')
-    expect(document.title).toBe('rescueBill｜青年 AI 就業風險政策系統')
+    expect(document.title).toBe('rescueBill｜青年 AI 就業轉型政策系統')
     go('#home')
     expect(window.location.hash).toBe('#home')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Bill 畢業了')

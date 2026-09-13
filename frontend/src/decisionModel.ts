@@ -407,23 +407,21 @@ export function analysisFromDashboard({
   const indicators = [
     buildIndicator(sourceMap, 'A', `職業內 ${youthLabel}占比`, occupation.youth_employment_share == null ? undefined : occupation.youth_employment_share * 100, '%', [youthSourceId], 'exact', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'B', 'ILO 生成式 AI 職務暴露', occupation.exposure_score, '0–1', ['ilo_genai_exposure'], 'proxy', occupation.data_confidence ?? null),
-    buildIndicator(sourceMap, 'C', '台灣產業 AI 導入', occupation.industry_adoption_score == null ? undefined : occupation.industry_adoption_score * 100, '%', ['job104_research'], 'proxy', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'H', '官方求才弱化', occupation.recruitment_weakening == null ? undefined : occupation.recruitment_weakening * 100, '%', ['mol_vacancy_history'], 'exact', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'D', 'AI 初階機會占比', occupation.ai_entry_opportunity_rate == null ? undefined : occupation.ai_entry_opportunity_rate * 100, '%', ['taiwanjobs'], 'estimated', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'vacancy-previous', '官方前期求才', occupation.recruitment_vacancies_previous, '人次', ['mol_vacancy_history'], 'exact', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'vacancy-current', '官方本期求才', occupation.recruitment_vacancies_current, '人次', ['mol_vacancy_history'], 'exact', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'jobs-total', '即時初階職缺樣本', occupation.total_entry_jobs, '個職缺', ['taiwanjobs'], 'estimated', occupation.data_confidence ?? null),
     buildIndicator(sourceMap, 'jobs-ai', 'AI 相關初階職缺樣本', occupation.ai_entry_jobs, '個職缺', ['taiwanjobs'], 'estimated', occupation.data_confidence ?? null),
-    buildIndicator(sourceMap, 'structural', '實驗性結構暴露', occupation.structural_exposure_score, '分', [youthSourceId, 'ilo_genai_exposure'], 'proxy', occupation.data_confidence ?? null),
-    buildIndicator(sourceMap, 'Risk', '完整風險', occupation.complete_risk_score, '分', [youthSourceId, 'ilo_genai_exposure', 'job104_research', 'mol_vacancy_history'], 'proxy', occupation.data_confidence ?? null),
+    buildIndicator(sourceMap, 'structural', '青年 AI 轉型政策關注指數', occupation.structural_exposure_score, '分', [youthSourceId, 'ilo_genai_exposure'], 'proxy', occupation.data_confidence ?? null),
   ]
 
   const claims: Claim[] = []
   if (occupation.structural_exposure_score != null) {
     claims.push({
       id: 'structural-exposure',
-      title: '結構暴露可用於職業間排序',
-      text: `${occupation.name}的實驗性結構暴露為 ${score(occupation.structural_exposure_score)}／100；這是 A×B 排序，不是失業或取代機率。`,
+      title: '政策關注指數可用於職業間排序',
+      text: `${occupation.name}的青年 AI 轉型政策關注指數為 ${score(occupation.structural_exposure_score)}／100；這是 A×B 的實驗性排序，不是失業或取代機率。`,
       kind: 'observation',
       verification: 'verified',
       indicatorRefs: ['A', 'B', 'structural'],
@@ -518,7 +516,7 @@ export function analysisFromDashboard({
     ? 'error'
     : ['STALE', 'CACHED'].includes(dashboard.overall_status)
       ? 'stale'
-      : occupation.complete_risk_score == null ? 'partial' : 'ready'
+      : occupation.structural_exposure_score == null ? 'partial' : 'ready'
   return {
     id: [dashboard.analysis_run_id, verification?.verification_id ?? 'no-verification', policy?.generated_at ?? 'no-policy'].join(':'),
     modelVersion: scoreVersion,
@@ -538,8 +536,7 @@ export function analysisFromDashboard({
     evidence,
     policies: policyOptions,
     limitations: [
-      'A×B 是實驗性結構暴露排序，不是失業機率或 AI 因果估計。',
-      'C 缺少可靠的產業到職業權重時，完整 Risk 保持空值。',
+      '政策關注指數是 100×√(A×B) 的實驗性職業排序，不是失業機率或 AI 因果估計。',
       'H 與 D 是獨立訊號，不互相抵銷；公眾感受也不冒充客觀風險。',
       ...(occupation.data_confidence_reasons ?? []),
       ...(verification?.gaps ?? []),

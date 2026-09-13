@@ -11,14 +11,14 @@ export const percentage = (a: number, b: number) => {
 }
 const chartMaximum = Math.max(...snapshot.occupations.flatMap(o => [o.previous, o.current]))
 const metrics = [
-  ['S', '結構性 AI 暴露'], ['A', '青年集中程度'], ['B', 'AI 能力暴露'],
-  ['C', '台灣 AI 導入訊號'], ['H', '招募弱化'], ['D', 'AI 人才需求'],
+  ['S', '政策關注指數'], ['A', '青年集中程度'], ['B', 'AI 能力暴露'],
+  ['H', '招募弱化'], ['D', 'AI 人才需求'],
 ] as const
 const occupationIcons: Record<string, IconName> = { '4': 'briefcase', '2': 'book', '5': 'users' }
 export type Detail = '資料來源' | '計算方式' | '清洗紀錄' | '估算方式' | `指標 ${IndicatorId}`
 export const detailIcons: Record<Detail, IconName> = {
   資料來源: 'database', 計算方式: 'formula', 清洗紀錄: 'filter', 估算方式: 'info',
-  '指標 S': 'formula', '指標 A': 'users', '指標 B': 'sparkles', '指標 C': 'briefcase', '指標 H': 'chart', '指標 D': 'database',
+  '指標 S': 'formula', '指標 A': 'users', '指標 B': 'sparkles', '指標 H': 'chart', '指標 D': 'database',
 }
 
 export type Occupation = typeof snapshot.occupations[number]
@@ -39,13 +39,13 @@ export function IndicatorsPage({ occupation, openDetail, flow }: PageProps) { re
           </button>
         </aside> }
 
-export function RiskPage({ occupation, code, setCode, flow }: PageProps) { return <div className="risk-layout"><aside className="risk-overview"><span className="section-kicker">目前職業的風險</span><h2>{occupation.name}</h2><div className="policy-risk">
-            <div className="risk-label"><span>AI 就業風險</span><Icon name="sparkles" /></div>
-            <strong>—<small> / 100</small></strong><span className="risk-caption">資料不足，暫不評分</span>
-          </div><p className="policy-muted">此模型為早期預警指標，不是失業機率。</p><button className="policy-text-button" onClick={e => flow.navigate(2, 'claim-recruitment-change', e.detail === 0)}>查看判讀原因<Icon name="arrow" /></button></aside><section className="panel policy-comparison" id="comparison" aria-labelledby="comparison-title">
+export function RiskPage({ occupation, code, setCode, flow }: PageProps) { return <div className="risk-layout"><aside className="risk-overview"><span className="section-kicker">目前職業的政策關注程度</span><h2>{occupation.name}</h2><div className="policy-risk">
+            <div className="risk-label"><span>青年 AI 轉型政策關注指數</span><Icon name="sparkles" /></div>
+            <strong>—<small> / 100</small></strong><span className="risk-caption">請以即時 Dashboard 指標為準</span>
+          </div><p className="policy-muted">正式頁面以 100 × √(A × B) 排序，不是失業機率。</p><button className="policy-text-button" onClick={e => flow.navigate(2, 'claim-recruitment-change', e.detail === 0)}>查看判讀原因<Icon name="arrow" /></button></aside><section className="panel policy-comparison" id="comparison" aria-labelledby="comparison-title">
           <div className="panel__header"><div><div className="section-kicker"><Icon name="users" /><span>職業比較</span></div><h2 id="comparison-title" tabIndex={-1} data-flow-id="comparison-title">哪些職業值得優先關注？</h2></div><span className="status">3 個職業</span></div>
-          <p className="policy-muted">Risk 尚未核定，暫不做風險排名。下方序號是列表順序，先比較已核對的求才年變化。</p>
-          <div className="policy-table-head"><span>職業</span><span>Risk</span><span>求才年變化</span></div>
+          <p className="policy-muted">政策關注指數使用即時 A、B 計算；此舊快照只保留已核對的求才年變化。</p>
+          <div className="policy-table-head"><span>職業</span><span>關注指數</span><span>求才年變化</span></div>
           <div role="group" aria-label="選擇職業">
             {snapshot.occupations.map((o, index) => <button className="policy-occupation" aria-pressed={code === o.code} key={o.code} onClick={() => setCode(o.code)}>
               <span className="occupation-label"><span className="occupation-number" aria-label={`序號 ${index + 1}`}>{String(index + 1).padStart(2, '0')}</span><span className={`occupation-icon occupation-icon--${o.code}`}><Icon name={occupationIcons[o.code]} /></span><span><b>{o.name}</b><small>職業大類 {o.code}</small></span></span>
@@ -66,7 +66,7 @@ export function DiagnosisPage({ occupation, openDetail, flow }: PageProps) { ret
           <div className="section-kicker"><Icon name="sparkles" /><span>職業診斷</span></div><h2>{occupation.name}</h2>
           <div className="diagnostic-summary"><span className="diagnostic-icon"><Icon name="info" /></span><span className="policy-diagnostic-label">證據不足</span><p>求才人次比前一年變化 <ChangeText text={percentage(occupation.previous, occupation.current)} />，目前還不能判定是否與 AI 有關。</p></div>
           <ClaimList flow={flow} />
-          <h3>判讀重點</h3><ul><li>A／B／C 尚待核對，因此還不能計算 S 與 Risk。</li><li>AI 技能職缺占比與比較排名仍待整理。</li><li>求才增減還可能受景氣或招募管道影響，不能直接換算成 AI 風險。</li></ul>
+          <h3>判讀重點</h3><ul><li>政策關注指數只使用 A 與 B，H、D 獨立判讀。</li><li>AI 技能職缺占比與比較排名仍需保留樣本限制。</li><li>求才增減還可能受景氣或招募管道影響，不能直接換算成 AI 風險。</li></ul>
           <details data-memory="diagnosis-types"><summary>診斷類型說明</summary><p>核定後可區分自動化壓力、AI 增強機會、技能錯配／轉型、非 AI 招募弱化、持續觀察。證據不足不歸入任何風險類型。</p></details>
           <div className="policy-detail-links">
             {(['資料來源', '清洗紀錄', '估算方式'] as Detail[]).map(kind => <button className="policy-text-button" key={kind} onClick={e => openDetail(kind, e.currentTarget)}>

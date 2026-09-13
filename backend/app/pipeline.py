@@ -241,7 +241,7 @@ def build_dashboard(
             priority = "monitor"
         confidence_reasons = [
             "B 為 ILO 細職業無台灣就業權重的職業大類 proxy",
-            "C 尚未取得可靠的職業層級實值，完整 Risk 不發布",
+            "政策關注指數尚未經歷史資料回測校準，不代表失業或被取代機率",
         ]
         data_confidence = "MEDIUM"
         if row["recruitment_weakening"] is None:
@@ -322,8 +322,12 @@ def build_dashboard(
                     if row["structural_exposure_score"] is not None
                     else None
                 ),
-                complete_risk_score=None,
-                score_status="MISSING_C",
+                score_status=(
+                    "EXPERIMENTAL"
+                    if row["structural_exposure_score"] is not None
+                    else "INSUFFICIENT_DATA"
+                ),
+                score_formula="100 × sqrt(A × B)",
                 data_confidence=data_confidence,
                 data_confidence_reasons=confidence_reasons,
                 priority=priority,
@@ -417,15 +421,15 @@ def build_dashboard(
                 "priority_score_p33": round(priority_medium, 1),
             },
             "metric_warning": (
-                f"目前只發布實驗性結構暴露：A=職業內 {youth_label}青年占比，"
-                "B=ILO 職業任務暴露 proxy。P=該職業占全部青年就業比率、"
-                "H=勞動部官方求才年減形成的獨立招募弱化訊號、D=AI 初階職缺機會率，"
-                "均分開顯示。C 尚無可靠職業量化值，所以完整 Risk 為 null。"
+                f"目前發布青年 AI 轉型政策關注指數：A=職業內 {youth_label}青年占比，"
+                "B=ILO 職業任務暴露 proxy，指數=100×sqrt(A×B)。"
+                "H=勞動部官方求才年減形成的獨立招募弱化訊號；"
+                "D=AI 初階職缺機會率。H、D 均獨立顯示、不進分數。"
+                "本指數尚未回測校準，不是失業或被取代機率。"
             ),
-            "score_formula": "100 × sqrt(A × B); experimental structural exposure only",
-            "risk_formula_candidate": "Risk requires calibrated A, B, C and independent H",
-            "risk_status": "MISSING_C",
-            "score_version": "2026-09-13.1",
+            "score_formula": "100 × sqrt(A × B)",
+            "score_status": "EXPERIMENTAL",
+            "score_version": "2026-09-13.2",
         },
         occupation_signals=signals,
         public_opinion=public_opinion,

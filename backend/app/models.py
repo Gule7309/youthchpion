@@ -109,14 +109,16 @@ class OccupationSignal(BaseModel):
     recruitment_three_year_change: float | None = None
     recruitment_weakening: float | None = None
     weakening_sensitivity: dict[str, float | None] = Field(default_factory=dict)
-    industry_adoption_score: float | None = None
     youth_concentration_index: float | None = None
     opportunity_gap: float | None = None
     transformation_priority_score: float | None = None
     structural_exposure_score: float | None = None
-    complete_risk_score: float | None = None
-    score_status: Literal["EXPERIMENTAL", "MISSING_C", "INSUFFICIENT_DATA"] = "MISSING_C"
-    score_formula: str = "100 × sqrt(A × B); experimental structural exposure only"
+    # MISSING_C is accepted only so a newly deployed API can read the previous
+    # serialized S3 snapshot until the first refresh publishes the new contract.
+    score_status: Literal["EXPERIMENTAL", "INSUFFICIENT_DATA", "MISSING_C"] = (
+        "INSUFFICIENT_DATA"
+    )
+    score_formula: str = "100 × sqrt(A × B)"
     data_confidence: Literal["MEDIUM", "LOW"] = "MEDIUM"
     data_confidence_reasons: list[str] = Field(default_factory=list)
     priority: Literal["high", "medium", "monitor"]

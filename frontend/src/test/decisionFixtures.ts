@@ -34,7 +34,7 @@ export const dashboardFixture: Dashboard = {
     source('job104_research', '2025'),
     source('mol_vacancy_history', '2023–2025'),
   ],
-  summary_metrics: { score_version: 'metric-v1', metric_warning: '完整 Risk 尚未發布。' },
+  summary_metrics: { score_version: 'metric-v2', metric_warning: '政策關注指數為實驗性排序，不是失業機率。' },
   occupation_signals: [{
     code: '4',
     name: '事務支援人員',
@@ -51,8 +51,7 @@ export const dashboardFixture: Dashboard = {
     recruitment_vacancies_previous: 20_000,
     recruitment_vacancies_current: 17_600,
     structural_exposure_score: 40,
-    complete_risk_score: undefined,
-    score_status: 'MISSING_C',
+    score_status: 'EXPERIMENTAL',
     score_formula: '100 × sqrt(A × B)',
     data_confidence: 'MEDIUM',
     data_confidence_reasons: ['D 為平台樣本。'],

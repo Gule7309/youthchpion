@@ -36,6 +36,8 @@ def dashboard(dgbas_period: str = "2025") -> DashboardResponse:
         ai_entry_jobs=3,
         total_entry_jobs=100,
         recruitment_weakening=0.4,
+        structural_exposure_score=17.3,
+        score_status="EXPERIMENTAL",
         priority="high",
         source_snapshot_ids=[source.source_id for source in sources],
     )
@@ -56,17 +58,27 @@ def dashboard(dgbas_period: str = "2025") -> DashboardResponse:
     )
 
 
-def test_readiness_distinguishes_safe_core_from_incomplete_risk() -> None:
+def test_readiness_reports_policy_attention_index() -> None:
     checks = dashboard_quality_checks(dashboard(), now=NOW)
 
     assert checks["dgbas_period_current"] is True
     assert checks["required_indicator_coverage"] is True
     assert checks["taiwanjobs_ai_mapping_coverage"] is True
     assert checks["exact_18_35_ready"] is False
-    assert checks["complete_risk_ready"] is False
+    assert checks["policy_attention_ready"] is True
 
 
 def test_readiness_rejects_outdated_annual_employment_period() -> None:
     checks = dashboard_quality_checks(dashboard("2024"), now=NOW)
 
     assert checks["dgbas_period_current"] is False
+
+
+def test_previous_missing_c_snapshot_remains_readable_during_deployment() -> None:
+    value = dashboard().model_dump(mode="json")
+    value["occupation_signals"][0]["score_status"] = "MISSING_C"
+    value["occupation_signals"][0]["complete_risk_score"] = None
+
+    restored = DashboardResponse.model_validate(value)
+
+    assert restored.occupation_signals[0].structural_exposure_score == 17.3

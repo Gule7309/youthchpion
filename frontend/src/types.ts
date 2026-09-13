@@ -50,13 +50,11 @@ export interface OccupationSignal {
   recruitment_three_year_change?: number
   recruitment_weakening?: number
   weakening_sensitivity?: Record<string, number | undefined>
-  industry_adoption_score?: number
   youth_concentration_index?: number
   opportunity_gap?: number
   transformation_priority_score?: number
   structural_exposure_score?: number
-  complete_risk_score?: number
-  score_status?: 'EXPERIMENTAL' | 'MISSING_C' | 'INSUFFICIENT_DATA'
+  score_status?: 'EXPERIMENTAL' | 'INSUFFICIENT_DATA' | 'MISSING_C'
   score_formula: string
   data_confidence?: 'MEDIUM' | 'LOW'
   data_confidence_reasons?: string[]

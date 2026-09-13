@@ -88,7 +88,7 @@ def dashboard_quality_checks(
             "required_indicator_coverage": False,
             "taiwanjobs_ai_mapping_coverage": False,
             "exact_18_35_ready": False,
-            "complete_risk_ready": False,
+            "policy_attention_ready": False,
         }
     sources = {source.source_id: source for source in dashboard.sources}
     usable = {FreshnessStatus.LIVE, FreshnessStatus.UNCHANGED, FreshnessStatus.CACHED}
@@ -132,9 +132,9 @@ def dashboard_quality_checks(
             and dashboard.summary_metrics.get("analysis_population_source_id")
             == "dgbas_microdata_18_35"
         ),
-        "complete_risk_ready": bool(dashboard.occupation_signals)
+        "policy_attention_ready": bool(dashboard.occupation_signals)
         and all(
-            signal.complete_risk_score is not None
+            signal.structural_exposure_score is not None
             for signal in dashboard.occupation_signals
         ),
     }
@@ -166,7 +166,7 @@ async def ready() -> dict[str, Any]:
     return {
         "ready": all(checks[name] for name in core_checks),
         "policy_generation_ready": checks["bedrock_model_configured"],
-        "complete_risk_ready": checks["complete_risk_ready"],
+        "policy_attention_ready": checks["policy_attention_ready"],
         "checks": checks,
     }
 

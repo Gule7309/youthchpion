@@ -59,11 +59,11 @@ export function LandingPage() {
       <section className="landing-flow" id="home-flow" aria-labelledby="flow-title"><div className="landing-section-heading"><h2 id="flow-title">進入後，可以看這五個分頁。</h2><p>點上方導覽列或側邊檔案夾切換，從你需要的內容開始看。</p></div><ol>{steps.map((step, i) => <li key={step.name}><span className="landing-step-number">0{i + 1}</span><Icon name={step.icon} /><h3>{step.name}</h3><p>{step.text}</p></li>)}</ol></section>
       <section className="landing-trust" id="home-trust" aria-labelledby="trust-title"><div><Icon name="book" /><h2 id="trust-title">使用前，先了解<br />這份資料的限制。</h2><p>缺少的數值與政策依據會標示為待補，不會用示意資料代替。頁面引用的機構沒有因此為 rescueBill 背書。</p></div><dl>
         <div><dt>現在能用哪些功能？</dt><dd>查看三個職業的官方求才趨勢與判讀說明，也可以把已有內容整理成會議草稿。草稿由瀏覽器整理，不是 AI 生成的政策建議。</dd></div>
-        <div><dt>哪些還沒完成？</dt><dd>完整的 AI 風險指標、各職業的政策依據與 AI 報告服務仍在建置。風險分數（Risk）尚未核定，目前不評分、不排名。</dd></div>
+        <div><dt>指數怎麼解讀？</dt><dd>政策關注指數以 A×B 比較職業的青年集中與 AI 任務暴露；H、D 與權威研究另外呈現。這是實驗性排序，不是失業率或 AI 取代機率。</dd></div>
         <div><dt>這是 18–35 歲的資料嗎？</dt><dd>不是。18–35 歲是模型預計分析的族群，目前預覽的求才資料涵蓋全年齡，不能當成這個年齡層的就業結果。</dd></div>
       </dl></section>
       <section className="landing-bottom"><div><h2>先選一個職業，看看求才變化。</h2><p>進入後可以切換職業，查看數據與來源。</p></div><EnterLink /></section>
     </main>
-    <footer className="landing-footer"><span>rescueBill 青年 AI 就業風險政策系統</span><span>政策決策輔助展示版，不取代專業判斷。</span></footer>
+    <footer className="landing-footer"><span>rescueBill 青年 AI 就業轉型政策系統</span><span>政策決策輔助展示版，不取代專業判斷。</span></footer>
   </div>
 }

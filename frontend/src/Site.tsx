@@ -12,7 +12,7 @@ export default function Site() {
     return () => { window.removeEventListener('hashchange', sync); window.removeEventListener('popstate', sync) }
   }, [])
   useLayoutEffect(() => {
-    document.title = home ? 'rescueBill｜拯救 Bill，也拯救帳單' : 'rescueBill｜青年 AI 就業風險政策系統'
+    document.title = home ? 'rescueBill｜拯救 Bill，也拯救帳單' : 'rescueBill｜青年 AI 就業轉型政策系統'
     window.scrollTo({ top: 0, behavior: 'instant' })
     document.querySelector<HTMLElement>(home ? '.landing h1' : '.folder-brand h1')?.focus({ preventScroll: true })
   }, [home])
