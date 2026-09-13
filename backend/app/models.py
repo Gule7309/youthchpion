@@ -39,6 +39,10 @@ class SourceSnapshot(BaseModel):
     source_url: str
     dataset_name: str | None = None
     reference_url: str | None = None
+    discovery_url: str | None = None
+    discovery_sha256: str | None = None
+    reference_sha256: str | None = None
+    data_period: str | None = None
     processing_steps: list[str] = Field(default_factory=list)
     fields_used: list[str] = Field(default_factory=list)
     why_used: str | None = None
@@ -62,8 +66,16 @@ class CleaningAudit(BaseModel):
     missing_occupation: int = 0
     crosswalk_coverage: float | None = None
     unmatched_categories: list[str] = Field(default_factory=list)
-    transform_version: str = "2026-09-12.2"
+    transform_version: str = "2026-09-12.3"
     before_after: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SourceLineageRef(BaseModel):
+    source_id: str
+    run_id: str
+    snapshot_key: str | None = None
+    content_sha256: str | None = None
+    data_period: str | None = None
 
 
 class OccupationSignal(BaseModel):
@@ -71,18 +83,41 @@ class OccupationSignal(BaseModel):
     name: str
     youth_employed: int | None = None
     youth_employed_25_29: int | None = None
+    # A: youth employed in this occupation / all employed people in this occupation.
     youth_employment_share: float | None = None
+    # P: youth employed in this occupation / all youth employed across occupations.
+    occupation_share_of_youth: float | None = None
     exposure_level: str
     exposure_score: float | None = None
+    exposure_p90: float | None = None
+    high_exposure_occupation_share: float | None = None
+    exposure_occupation_count: int | None = None
     ai_entry_jobs: int
     total_entry_jobs: int
     ai_entry_opportunity_rate: float | None = None
+    ai_entry_opportunity_status: Literal[
+        "READY_EXPERIMENTAL", "LOW_SAMPLE", "LOW_AI_MAPPING_COVERAGE", "NO_DENOMINATOR"
+    ] = "NO_DENOMINATOR"
+    ai_subsample_mapping_coverage: float | None = None
+    recruitment_vacancies_current: int | None = None
+    recruitment_vacancies_previous: int | None = None
+    recruitment_yoy_change: float | None = None
+    recruitment_three_year_change: float | None = None
+    recruitment_weakening: float | None = None
+    weakening_sensitivity: dict[str, float | None] = Field(default_factory=dict)
+    industry_adoption_score: float | None = None
     youth_concentration_index: float | None = None
     opportunity_gap: float | None = None
     transformation_priority_score: float | None = None
-    score_formula: str = "100 × cubic_root(A × B × H)"
+    structural_exposure_score: float | None = None
+    complete_risk_score: float | None = None
+    score_status: Literal["EXPERIMENTAL", "MISSING_C", "INSUFFICIENT_DATA"] = "MISSING_C"
+    score_formula: str = "100 × sqrt(A × B); experimental structural exposure only"
+    data_confidence: Literal["MEDIUM", "LOW"] = "MEDIUM"
+    data_confidence_reasons: list[str] = Field(default_factory=list)
     priority: Literal["high", "medium", "monitor"]
     source_snapshot_ids: list[str]
+    source_snapshot_refs: list[SourceLineageRef] = Field(default_factory=list)
 
 
 class EvidenceItem(BaseModel):
@@ -106,6 +141,7 @@ class EvidenceItem(BaseModel):
 
 class EvidenceVerificationRequest(BaseModel):
     analysis_run_id: str
+    occupation_code: str | None = None
     evidence_ids: list[str] = Field(min_length=1, max_length=3)
     search_query: str = Field(min_length=3, max_length=300)
     question: str = Field(min_length=3, max_length=240)
@@ -131,6 +167,31 @@ class VerifiedClaim(BaseModel):
     retrieved_url: HttpUrl | None = None
     content_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     authority_basis: str | None = None
+    geographic_scope: str = "尚未分類"
+    taiwan_applicability: Literal[
+        "DIRECT_TAIWAN_CONTEXT",
+        "TRANSFER_REQUIRES_LOCAL_VALIDATION",
+        "BACKGROUND_ONLY",
+    ] = "BACKGROUND_ONLY"
+    applicability_reason: str = "尚未完成台灣適用性評估。"
+    local_validation_needed: list[str] = Field(default_factory=list)
+
+
+class TaiwanApplicabilityAssessment(BaseModel):
+    status: Literal[
+        "TAIWAN_CONTEXT_WITH_LOCAL_INTERVENTION",
+        "TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE",
+        "INSUFFICIENT_TAIWAN_CONTEXT",
+    ]
+    occupation_code: str | None = None
+    occupation_name: str | None = None
+    taiwan_problem_context_supported: bool
+    taiwan_intervention_effect_supported: bool
+    local_context_source_ids: list[str] = Field(default_factory=list)
+    local_research_evidence_ids: list[str] = Field(default_factory=list)
+    transfer_evidence_ids: list[str] = Field(default_factory=list)
+    conclusion: str
+    required_local_validation: list[str] = Field(default_factory=list)
 
 
 class EvidenceHarnessSummary(BaseModel):
@@ -162,6 +223,14 @@ class EvidenceVerificationResponse(BaseModel):
     gaps: list[str] = Field(default_factory=list)
     agent_steps: list[str] = Field(default_factory=list)
     harness: EvidenceHarnessSummary | None = None
+    taiwan_applicability: TaiwanApplicabilityAssessment = Field(
+        default_factory=lambda: TaiwanApplicabilityAssessment(
+            status="INSUFFICIENT_TAIWAN_CONTEXT",
+            taiwan_problem_context_supported=False,
+            taiwan_intervention_effect_supported=False,
+            conclusion="尚未取得足以判斷台灣適用性的本地脈絡。",
+        )
+    )
 
 
 class DashboardResponse(BaseModel):

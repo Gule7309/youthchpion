@@ -14,6 +14,28 @@ CROSSREF_URL = "https://api.crossref.org/works"
 
 CURATED_EVIDENCE = [
     {
+        "key": "taiwanjobs_ai_recruitment_survey_2024",
+        "title": "2024 AI世代的求才條件大調查",
+        "institution": "勞動部勞動力發展署／台灣就業通",
+        "published_at": "2024-12-02",
+        "evidence_type": "government labour-market survey",
+        "authority_tier": "A",
+        "method_summary": (
+            "台灣雇主與平台會員調查，533 份有效樣本；依公司規模與地區加權，"
+            "用於辨識 AI 時代的本地徵才與技能訊號。"
+        ),
+        "finding": (
+            "台灣雇主對 AI 時代人才條件與技能需求的調查，可補充官方就業結構的"
+            "本地需求脈絡。"
+        ),
+        "policy_relevance": ["台灣徵才脈絡", "AI技能需求", "本地試辦設計"],
+        "limitations": (
+            "便利抽樣且母體為平台會員；不是青年專屬樣本，也不能證明 AI 導致失業"
+            "或特定政策具有因果成效。"
+        ),
+        "url": "https://event.taiwanjobs.gov.tw/2024/survey/02/index.html",
+    },
+    {
         "key": "ilo_refined_index_2025",
         "title": "Generative AI and Jobs: A Refined Global Index of Occupational Exposure",
         "institution": "International Labour Organization",
@@ -31,6 +53,22 @@ CURATED_EVIDENCE = [
             "https://www.ilo.org/publications/generative-ai-and-jobs-refined-global-index-"
             "occupational-exposure"
         ),
+    },
+    {
+        "key": "ilo_worldbank_youth_almp_2026",
+        "title": "The impact of active labour market programmes for youth",
+        "institution": "ILO / World Bank",
+        "published_at": "2026",
+        "evidence_type": "evidence synthesis",
+        "authority_tier": "A",
+        "method_summary": "Evidence synthesis on active labour-market programme designs for youth.",
+        "finding": (
+            "Use the evidence base to compare training, employment services and bundled "
+            "interventions, with explicit evaluation rather than assuming one universal effect."
+        ),
+        "policy_relevance": ["青年就業方案", "試辦評估", "政策組合"],
+        "limitations": "Programme effects depend on design and local labour-market conditions.",
+        "url": "https://www.ilo.org/publications/impact-active-labour-market-programmes-youth",
     },
     {
         "key": "oecd_ai_skills_2024",
@@ -54,33 +92,17 @@ CURATED_EVIDENCE = [
         ),
     },
     {
-        "key": "ilo_worldbank_youth_almp_2026",
-        "title": "The impact of active labour market programmes for youth",
-        "institution": "ILO / World Bank",
-        "published_at": "2026",
-        "evidence_type": "evidence synthesis",
-        "authority_tier": "A",
-        "method_summary": "Evidence synthesis on active labour-market programme designs for youth.",
-        "finding": (
-            "Use the evidence base to compare training, employment services and bundled "
-            "interventions, with explicit evaluation rather than assuming one universal effect."
-        ),
-        "policy_relevance": ["青年就業方案", "試辦評估", "政策組合"],
-        "limitations": "Programme effects depend on design and local labour-market conditions.",
-        "url": "https://www.ilo.org/publications/impact-active-labour-market-programmes-youth",
-    },
-    {
-        "key": "moda_digital_access_2024",
-        "title": "113年數位近用調查報告",
+        "key": "moda_digital_access_2025",
+        "title": "114年數位近用調查報告",
         "institution": "數位發展部",
-        "published_at": "2024",
+        "published_at": "2026-01-13",
         "evidence_type": "government public-opinion survey",
         "authority_tier": "A",
         "method_summary": "全國數位近用調查；Dashboard 使用其中 20–29 歲就業網路族分組。",
         "finding": "青年對工作可能受自動化或 AI 取代的主觀感受可作政策溝通訊號。",
         "policy_relevance": ["青年民意", "風險溝通", "政策接受度"],
         "limitations": "主觀感受不等於實際職務暴露或失業機率。",
-        "url": "https://srda.sinica.edu.tw/file/e0362889-6adc-4857-9908-4319f33548a3",
+        "url": "https://moda.gov.tw/digital-affairs/digital-service/dv-survey/18672",
     },
     {
         "key": "104_aws_ai_jobs_2025",

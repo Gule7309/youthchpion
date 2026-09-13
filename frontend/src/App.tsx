@@ -87,7 +87,7 @@ function indicator(signal: OccupationSignal, id: string) {
 }
 
 function firstEvidenceSelection(items: EvidenceItem[]) {
-  const preferredKeys = ['refined_index', 'youth_almp']
+  const preferredKeys = ['taiwanjobs_ai_recruitment', 'refined_index', 'youth_almp']
   const preferred = preferredKeys
     .map((key) => items.find((item) => item.evidence_id.includes(key)))
     .filter((item): item is EvidenceItem => Boolean(item))
@@ -250,6 +250,7 @@ export default function App() {
     try {
       const value = await verifyEvidence({
         analysis_run_id: dashboard.analysis_run_id,
+        occupation_code: selected.code,
         evidence_ids: selectedEvidence.slice(0, 3),
         search_query: researchQuery(selected),
         question: `${selected.name}在生成式 AI 轉型下需要哪些青年就業政策？`,
@@ -358,7 +359,15 @@ export default function App() {
       <div className="panel__header"><div><div className="section-kicker"><Icon name="book" />權威證據 AGENT</div><h2 id="research-title">即時檢索、取回原文、核對主張</h2></div><button className="button button--ghost" onClick={runSearch} disabled={Boolean(busy)}>{busy === 'SEARCHING' ? '檢索中…' : '重新即時檢索'}</button></div>
       <div className="policy-evidence-list">{evidence.slice(0, 6).map((item) => <label className="policy-evidence" key={item.evidence_id}><input type="checkbox" checked={selectedEvidence.includes(item.evidence_id)} onChange={() => { setSelectedEvidence((current) => current.includes(item.evidence_id) ? current.filter((id) => id !== item.evidence_id) : [...current, item.evidence_id].slice(-3)); setVerification(null); setPolicy(null) }} /><span><b>{item.title}</b><em>{item.authority_tier} 級候選 · {item.institution} · {item.discovery_source ?? '既有資料'} · {item.freshness}</em><p>{evidenceText(item.finding)}</p><a href={item.url} target="_blank" rel="noreferrer">查看候選來源 <Icon name="external" /></a></span></label>)}</div>
       <button className="button" onClick={runVerification} disabled={Boolean(busy) || !selectedEvidence.length}>{busy === 'VERIFYING' ? '搜尋與 BEDROCK 核對中…' : '執行權威證據 Agent'}</button>
-      {verification && <div className="agent-result"><span className={`status status--${verification.status.toLowerCase()}`}>{verification.status}</span><p>{verification.agent_steps.join(' → ')}</p>{verification.harness && <p className="policy-muted">Harness {verification.harness.prompt_version} · 最多 {verification.harness.max_sources} 個來源／每來源 {verification.harness.max_passages_per_source} 段／{verification.harness.deadline_seconds} 秒 · 本次 {verification.harness.duration_ms} ms、{verification.harness.input_tokens + verification.harness.output_tokens} tokens</p>}{verification.claims.map((claim) => <details data-memory={claim.claim_id} key={claim.claim_id}><summary>已通過原文認證：{claim.claim}</summary><blockquote>{claim.excerpt}</blockquote><small>{claim.locator} · {claim.support}{claim.content_sha256 ? ` · SHA-256 ${claim.content_sha256.slice(0, 12)}…` : ''}</small>{claim.authority_basis && <p className="policy-muted">認證依據：{claim.authority_basis}</p>}{claim.retrieved_url && <a href={claim.retrieved_url} target="_blank" rel="noreferrer">查看實際取回頁面 <Icon name="external" /></a>}</details>)}{verification.gaps.map((gap) => <p className="policy-muted" key={gap}>缺口：{gap}</p>)}</div>}
+      {verification && <div className="agent-result">
+        <span className={`status status--${verification.status.toLowerCase()}`}>{verification.status}</span>
+        <p>{verification.agent_steps.join(' → ')}</p>
+        <div className="policy-notice" role="status"><Icon name="info" /><span><b>台灣適用性：{verification.taiwan_applicability.status}</b><br />{verification.taiwan_applicability.conclusion}</span></div>
+        {verification.taiwan_applicability.required_local_validation.length > 0 && <details><summary>查看必要的台灣本地驗證</summary><ol>{verification.taiwan_applicability.required_local_validation.map((item) => <li key={item}>{item}</li>)}</ol></details>}
+        {verification.harness && <p className="policy-muted">Harness {verification.harness.prompt_version} · 最多 {verification.harness.max_sources} 個來源／每來源 {verification.harness.max_passages_per_source} 段／{verification.harness.deadline_seconds} 秒 · 本次 {verification.harness.duration_ms} ms、{verification.harness.input_tokens + verification.harness.output_tokens} tokens</p>}
+        {verification.claims.map((claim) => <details data-memory={claim.claim_id} key={claim.claim_id}><summary>已通過原文認證：{claim.claim}</summary><blockquote>{claim.excerpt}</blockquote><small>{claim.locator} · {claim.support} · {claim.geographic_scope}{claim.content_sha256 ? ` · SHA-256 ${claim.content_sha256.slice(0, 12)}…` : ''}</small><p className="policy-muted">台灣適用性：{claim.applicability_reason}</p>{claim.authority_basis && <p className="policy-muted">認證依據：{claim.authority_basis}</p>}{claim.retrieved_url && <a href={claim.retrieved_url} target="_blank" rel="noreferrer">查看實際取回頁面 <Icon name="external" /></a>}</details>)}
+        {verification.gaps.map((gap) => <p className="policy-muted" key={gap}>缺口：{gap}</p>)}
+      </div>}
       <h3>判讀與證據關聯</h3>
       {flow && <LinkedEvidence flow={flow} />}
     </section>
@@ -366,7 +375,7 @@ export default function App() {
     return <section className="panel policy-report" id="policy" aria-labelledby="policy-title">
       <div className="panel__header"><div><div className="section-kicker"><Icon name="report" />政策建議</div><h2 id="policy-title">{selected?.name}的政策選項</h2></div><span className="status">BEDROCK</span></div>
       {!policy && <><h3>先通過權威證據閘門，再收斂政策</h3><p>政策 API 只接受本次分析版本中、已被 Agent 取回原文並通過 publication gate 的證據 ID。</p><div className="policy-report-outline"><span>政策輸出會比較</span><ol><li>介入機制與目標族群</li><li>執行步驟與 KPI</li><li>證據、風險與限制</li></ol></div><button className="button" onClick={runPolicy} disabled={Boolean(busy) || !verification?.approved_evidence_ids.length}><Icon name="report" />{busy === 'POLICY' ? '推論中…' : '產生三個政策選項'}</button></>}
-      {policy && <p className="policy-notice" role="status"><Icon name="info" />已收到 {policy.options.length} 個政策選項；請逐項確認後再納入會議草稿。</p>}
+      {policy && <><p className="policy-notice" role="status"><Icon name="info" />已收到 {policy.options.length} 個政策選項；請逐項確認後再納入會議草稿。</p>{policy.warnings.map((warning) => <p className="policy-muted" key={warning}>台灣適用性限制：{warning}</p>)}</>}
       {flow && <PolicyMeeting flow={flow} />}
     </section>
   }

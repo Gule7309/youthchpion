@@ -73,6 +73,60 @@ async def test_authority_agent_retrieves_original_passage_and_publishes(monkeypa
     assert result.harness is not None
     assert result.harness.model_calls == 1
     assert result.harness.approved_claims == 1
+    assert result.claims[0].taiwan_applicability == "TRANSFER_REQUIRES_LOCAL_VALIDATION"
+    assert result.taiwan_applicability.status == "INSUFFICIENT_TAIWAN_CONTEXT"
+
+
+@pytest.mark.asyncio
+async def test_authority_agent_separates_taiwan_context_from_local_policy_effect(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.evidence_agent.settings",
+        replace(settings, bedrock_model_id="test-model", bedrock_min_interval_ms=0),
+    )
+    item = EvidenceItem(
+        evidence_id="authority_taiwanjobs_survey",
+        title="2024 AI世代的求才條件大調查",
+        institution="勞動部勞動力發展署／台灣就業通",
+        published_at="2024",
+        evidence_type="government labour-market survey",
+        authority_tier="A",
+        url="https://event.taiwanjobs.gov.tw/2024/survey/02/index.html",
+        retrieved_at=datetime.now(UTC),
+        freshness=FreshnessStatus.VERSIONED,
+    )
+    agent = AuthorityEvidenceAgent(http=FakeHttp())
+    monkeypatch.setattr(
+        agent,
+        "_converse",
+        lambda _: json.dumps(
+            {
+                "supported": True,
+                "claim": "The survey describes employer skill signals.",
+                "passage_index": 0,
+                "support": "direct",
+                "limitations": ["This is not an impact evaluation."],
+            }
+        ),
+    )
+
+    result = await agent.verify(
+        "run_test",
+        "What changes?",
+        [item],
+        local_context={
+            "occupation_code": "4",
+            "occupation_name": "事務支援人員",
+            "source_ids": ["dgbas_employment", "mol_vacancy_history", "taiwanjobs"],
+        },
+    )
+
+    assert result.claims[0].taiwan_applicability == "DIRECT_TAIWAN_CONTEXT"
+    assert result.taiwan_applicability.status == "TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE"
+    assert result.taiwan_applicability.taiwan_problem_context_supported is True
+    assert result.taiwan_applicability.taiwan_intervention_effect_supported is False
+    assert "90 天台灣試辦" in result.taiwan_applicability.required_local_validation[0]
 
 
 @pytest.mark.asyncio

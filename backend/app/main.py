@@ -73,6 +73,67 @@ authority_agent = AuthorityEvidenceAgent()
 running_tasks: set[asyncio.Task[None]] = set()
 
 
+def dashboard_quality_checks(
+    dashboard: DashboardResponse | None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    now = now or datetime.now(UTC)
+    if dashboard is None:
+        return {
+            "published_dashboard": False,
+            "dashboard_recent": False,
+            "required_sources_usable": False,
+            "dgbas_period_current": False,
+            "vacancy_period_current": False,
+            "required_indicator_coverage": False,
+            "taiwanjobs_ai_mapping_coverage": False,
+            "complete_risk_ready": False,
+        }
+    sources = {source.source_id: source for source in dashboard.sources}
+    usable = {FreshnessStatus.LIVE, FreshnessStatus.UNCHANGED, FreshnessStatus.CACHED}
+    required_ids = {"dgbas_employment", "ilo_genai_exposure", "mol_vacancy_history"}
+
+    def current_period(source_id: str) -> bool:
+        value = sources.get(source_id)
+        if value is None or value.data_period is None:
+            return False
+        try:
+            return int(value.data_period) >= now.year - 1
+        except ValueError:
+            return False
+
+    mapping_coverage = dashboard.summary_metrics.get("ai_subsample_mapping_coverage")
+    minimum_mapping = dashboard.summary_metrics.get(
+        "d_minimum_ai_mapping_coverage", 0.8
+    )
+    return {
+        "published_dashboard": True,
+        "dashboard_recent": now - dashboard.published_at <= timedelta(
+            hours=settings.latest_max_stale_hours
+        ),
+        "required_sources_usable": all(
+            source_id in sources and sources[source_id].status in usable
+            for source_id in required_ids
+        ),
+        "dgbas_period_current": current_period("dgbas_employment"),
+        "vacancy_period_current": current_period("mol_vacancy_history"),
+        "required_indicator_coverage": bool(dashboard.occupation_signals)
+        and all(
+            signal.youth_employment_share is not None
+            and signal.exposure_score is not None
+            and signal.recruitment_weakening is not None
+            for signal in dashboard.occupation_signals
+        ),
+        "taiwanjobs_ai_mapping_coverage": isinstance(mapping_coverage, (int, float))
+        and float(mapping_coverage) >= float(minimum_mapping),
+        "complete_risk_ready": bool(dashboard.occupation_signals)
+        and all(
+            signal.complete_risk_score is not None
+            for signal in dashboard.occupation_signals
+        ),
+    }
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -82,12 +143,26 @@ async def health() -> dict[str, str]:
 async def ready() -> dict[str, Any]:
     dashboard = pipeline.latest_dashboard()
     checks = {
-        "published_dashboard": dashboard is not None,
+        **dashboard_quality_checks(dashboard),
         "bedrock_model_configured": bool(settings.bedrock_model_id),
         "snapshot_store": "s3" if settings.data_bucket else "local",
         "aws_region": settings.aws_region,
     }
-    return {"ready": checks["published_dashboard"], "checks": checks}
+    core_checks = (
+        "published_dashboard",
+        "dashboard_recent",
+        "required_sources_usable",
+        "dgbas_period_current",
+        "vacancy_period_current",
+        "required_indicator_coverage",
+        "taiwanjobs_ai_mapping_coverage",
+    )
+    return {
+        "ready": all(checks[name] for name in core_checks),
+        "policy_generation_ready": checks["bedrock_model_configured"],
+        "complete_risk_ready": checks["complete_risk_ready"],
+        "checks": checks,
+    }
 
 
 @app.post("/v1/refresh", response_model=RefreshResponse, status_code=202)
@@ -221,6 +296,33 @@ async def verify_evidence(
     latest = pipeline.latest_dashboard()
     if not latest or latest.analysis_run_id != request.analysis_run_id:
         raise HTTPException(status_code=409, detail="analysis_run_is_not_latest")
+    signal = (
+        next(
+            (
+                item
+                for item in latest.occupation_signals
+                if item.code == request.occupation_code
+            ),
+            None,
+        )
+        if request.occupation_code
+        else (latest.occupation_signals[0] if latest.occupation_signals else None)
+    )
+    if request.occupation_code and signal is None:
+        raise HTTPException(status_code=404, detail="occupation_not_found")
+    usable = {FreshnessStatus.LIVE, FreshnessStatus.UNCHANGED, FreshnessStatus.CACHED}
+    local_source_ids = [
+        source.source_id
+        for source in latest.sources
+        if source.status in usable
+        and source.source_id
+        in {
+            "dgbas_employment",
+            "mol_vacancy_history",
+            "taiwanjobs",
+            "moda_public_opinion",
+        }
+    ]
     try:
         response = await authority_agent.research(
             request.analysis_run_id,
@@ -228,6 +330,11 @@ async def verify_evidence(
             request.question,
             evidence_service.search,
             request.evidence_ids,
+            local_context={
+                "occupation_code": signal.code if signal else request.occupation_code,
+                "occupation_name": signal.name if signal else None,
+                "source_ids": local_source_ids,
+            },
         )
         for item in response.searched_candidates:
             store.put_json(
@@ -289,6 +396,7 @@ async def policy_options(request: PolicyRequest) -> PolicyResponse:
             request.policy_goal,
             evidence,
             verified_claims,
+            verification.taiwan_applicability,
         )
     except PolicyGenerationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

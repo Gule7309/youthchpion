@@ -537,6 +537,7 @@ export function analysisFromDashboard({
       'H 與 D 是獨立訊號，不互相抵銷；公眾感受也不冒充客觀風險。',
       ...(occupation.data_confidence_reasons ?? []),
       ...(verification?.gaps ?? []),
+      ...(verification?.taiwan_applicability.required_local_validation ?? []),
       ...(policy?.warnings ?? []),
     ],
   }

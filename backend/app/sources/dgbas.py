@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import re
 from io import BytesIO
 from typing import Any
+from urllib.parse import urljoin
 
+from bs4 import BeautifulSoup
 from openpyxl import load_workbook
 
 from app.http import RetryingHttpClient
 from app.models import FreshnessStatus, SourceSnapshot, utc_now
 from app.sources.base import AdapterResult
 
-DGBAS_URL = "https://ws.dgbas.gov.tw/001/Upload/463/relfile/11516/234727/table47.xlsx"
-DGBAS_REFERENCE_URL = "https://www.stat.gov.tw/News_Content.aspx?n=4001&s=236078"
+DGBAS_ANNUAL_INDEX_URL = "https://www.stat.gov.tw/News.aspx?n=4001"
+TABLE_NUMBER = 47
 
 # The public workbook is bilingual. Rows 14-20 are the seven published occupation groups;
 # row names are mapped only after verifying their embedded English label.
@@ -40,8 +43,55 @@ def _number(value: Any) -> int:
     return int(round(float(value) * 1000))
 
 
-def parse_dgbas_workbook(body: bytes) -> list[dict[str, Any]]:
+def discover_latest_release(body: bytes, base_url: str) -> tuple[int, str]:
+    soup = BeautifulSoup(body, "html.parser")
+    releases: list[tuple[int, str]] = []
+    for link in soup.find_all("a", href=True):
+        title = " ".join(link.get_text(" ", strip=True).split())
+        match = re.fullmatch(r"(\d{3})\s*年人力資源調查統計", title)
+        if match:
+            releases.append((int(match.group(1)) + 1911, urljoin(base_url, link["href"])))
+    if not releases:
+        raise ValueError("DGBAS annual index does not contain a human-resources release")
+    return max(releases, key=lambda item: item[0])
+
+
+def discover_table_url(body: bytes, base_url: str, table_number: int = TABLE_NUMBER) -> str:
+    soup = BeautifulSoup(body, "html.parser")
+    marker = re.compile(rf"表\s*{table_number}(?:\D|$)")
+    filename = re.compile(rf"(?:^|/)table0*{table_number}\.xlsx(?:$|\?)", re.IGNORECASE)
+    for link in soup.find_all("a", href=True):
+        href = str(link["href"])
+        if filename.search(href):
+            return urljoin(base_url, href)
+    for link in soup.find_all("a", href=True):
+        href = str(link["href"])
+        label = link.get_text(" ", strip=True).upper()
+        parent_text = " ".join(link.parent.get_text(" ", strip=True).split())
+        if marker.search(parent_text) and (href.lower().endswith(".xlsx") or "EXCEL" in label):
+            return urljoin(base_url, href)
+    raise ValueError(f"DGBAS release does not contain table {table_number} Excel")
+
+
+def dgbas_workbook_period(body: bytes) -> int:
+    sheet = load_workbook(BytesIO(body), data_only=True, read_only=True).active
+    value = sheet.cell(5, 19).value
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("DGBAS workbook is missing the calendar year in S5") from exc
+
+
+def parse_dgbas_workbook(
+    body: bytes,
+    expected_period: int | None = None,
+) -> list[dict[str, Any]]:
     sheet = load_workbook(BytesIO(body), data_only=True).active
+    data_period = dgbas_workbook_period(body)
+    if expected_period is not None and data_period != expected_period:
+        raise ValueError(
+            f"DGBAS period mismatch: release={expected_period}, workbook={data_period}"
+        )
     records: list[dict[str, Any]] = []
     for row, (code, name) in ROW_MAP.items():
         raw_label = str(sheet.cell(row, 2).value or "")
@@ -68,6 +118,7 @@ def parse_dgbas_workbook(body: bytes) -> list[dict[str, Any]]:
                     else None
                 ),
                 "age_columns": {"20-24": 15, "25-29": 17},
+                "data_period": data_period,
             }
         )
     return records
@@ -80,15 +131,25 @@ class DgbasAdapter:
         self.http = http
 
     async def fetch(self) -> AdapterResult:
-        payload = await self.http.get(DGBAS_URL)
-        records = parse_dgbas_workbook(payload.body)
+        index = await self.http.get(DGBAS_ANNUAL_INDEX_URL)
+        data_period, release_url = discover_latest_release(index.body, index.url)
+        release = await self.http.get(release_url)
+        table_url = discover_table_url(release.body, release.url)
+        payload = await self.http.get(table_url)
+        records = parse_dgbas_workbook(payload.body, expected_period=data_period)
         snapshot = SourceSnapshot(
             source_id=self.source_id,
             status=FreshnessStatus.LIVE,
             source_url=payload.url,
             dataset_name="主計總處人力資源調查統計年報表 47",
-            reference_url=DGBAS_REFERENCE_URL,
+            reference_url=release.url,
+            discovery_url=index.url,
+            discovery_sha256=index.sha256,
+            reference_sha256=release.sha256,
+            data_period=str(data_period),
             processing_steps=[
+                "從官方年報清單選擇最新人力資源調查年度與表 47 Excel",
+                "比對發布頁年度與工作簿 S5 西元年，不一致即停止發布",
                 "驗證表 47 職業列與英文標籤，欄位漂移即停止發布",
                 "擷取 20–24 歲作主要政策分析；25–29 歲保留為獨立比較欄",
                 "將原始單位由千人換算為整數人數",
@@ -117,13 +178,20 @@ class DgbasAdapter:
             raw_rows=7,
             normalized_rows=len(records),
             message=(
-                "Official DGBAS endpoint requires scoped TLS compatibility mode; "
-                "workbook schema validated after download."
+                f"Discovered official {data_period} Table 47; release period, workbook period "
+                "and schema validated after download."
             ),
         )
         return AdapterResult(
             snapshot=snapshot,
             records=records,
-            audit={"age_filter": ["20-24", "25-29"], "unit_conversion": "thousand→person"},
+            audit={
+                "age_filter": ["20-24", "25-29"],
+                "unit_conversion": "thousand→person",
+                "data_period": data_period,
+                "discovery_url": index.url,
+                "release_url": release.url,
+                "table_url": payload.url,
+            },
             raw_body=payload.body,
         )

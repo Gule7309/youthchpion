@@ -54,6 +54,7 @@ export const searchEvidence = (query: string) =>
 
 export const verifyEvidence = (payload: {
   analysis_run_id: string
+  occupation_code: string
   evidence_ids: string[]
   search_query: string
   question: string

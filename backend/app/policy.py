@@ -16,6 +16,7 @@ from app.models import (
     OccupationSignal,
     PolicyOption,
     PolicyResponse,
+    TaiwanApplicabilityAssessment,
     VerifiedClaim,
 )
 
@@ -29,7 +30,9 @@ AI 暴露是職務轉型訊號，不是失業或被取代機率。輸出必須�
 而且 options 必須剛好有三個政策選項。每個選項要有不同機制、可執行步驟、風險、限制及
 有效 evidence_ids。每個 KPI 的 target 必須逐字使用 "pilot-defined"；除非輸入的
 allowed_percentage_values 明確列出，否則不得輸出百分比。
-找不到充分證據時，要在 limitations 說明，不能補造結論。"""
+找不到充分證據時，要在 limitations 說明，不能補造結論。國際研究只能作為可轉移機制；
+若 taiwan_applicability 指出缺少台灣介入成效，每個選項都必須包含台灣本地試辦、驗證方法
+與停止條件，不得宣稱政策已在台灣被證明有效。"""
 
 
 class PolicyGenerationError(RuntimeError):
@@ -48,6 +51,7 @@ class BedrockPolicyService:
         goal: str,
         evidence: list[EvidenceItem],
         verified_claims: list[VerifiedClaim],
+        taiwan_applicability: TaiwanApplicabilityAssessment | None = None,
     ) -> PolicyResponse:
         if not settings.bedrock_model_id:
             raise PolicyGenerationError("BEDROCK_MODEL_ID is not configured")
@@ -85,6 +89,11 @@ class BedrockPolicyService:
             "verified_claims": [
                 claim.model_dump(mode="json") for claim in verified_claims
             ],
+            "taiwan_applicability": (
+                taiwan_applicability.model_dump(mode="json")
+                if taiwan_applicability
+                else None
+            ),
             "allowed_percentage_values": sorted(allowed_percentages),
             "response_schema": {
                 "options": [
@@ -103,6 +112,10 @@ class BedrockPolicyService:
             },
         }
         async with self._lock:
+            require_local_pilot = bool(
+                taiwan_applicability
+                and not taiwan_applicability.taiwan_intervention_effect_supported
+            )
             contract_feedback: str | None = None
             for attempt in range(MAX_CONTRACT_ATTEMPTS):
                 await self._wait_for_rate_limit()
@@ -118,11 +131,22 @@ class BedrockPolicyService:
                 raw = await asyncio.to_thread(self._converse, attempt_payload)
                 self._last_request_at = time.monotonic()
                 try:
-                    options = self._validate(raw, allowed_ids, allowed_percentages)
+                    options = self._validate(
+                        raw,
+                        allowed_ids,
+                        allowed_percentages,
+                        require_local_pilot=require_local_pilot,
+                    )
                     return PolicyResponse(
                         model_id=settings.bedrock_model_id,
                         analysis_run_id=run_id,
                         options=options,
+                        warnings=(
+                            [taiwan_applicability.conclusion]
+                            if taiwan_applicability
+                            and not taiwan_applicability.taiwan_intervention_effect_supported
+                            else []
+                        ),
                     )
                 except (json.JSONDecodeError, ValidationError, PolicyGenerationError) as exc:
                     contract_feedback = self._contract_feedback(exc)
@@ -192,6 +216,7 @@ class BedrockPolicyService:
         raw: str,
         allowed_ids: set[str],
         allowed_percentages: set[float] | None = None,
+        require_local_pilot: bool = False,
     ) -> list[PolicyOption]:
         parsed = cls._extract_json(raw)
         options = [PolicyOption.model_validate(option) for option in parsed.get("options", [])]
@@ -208,6 +233,14 @@ class BedrockPolicyService:
                 if value not in (allowed_percentages or set()):
                     raise PolicyGenerationError(
                         f"policy output introduced unsupported percentage {value}%"
+                    )
+            if require_local_pilot:
+                validation_text = " ".join(
+                    [*option.implementation, *option.risks, *option.limitations]
+                ).casefold()
+                if not any(marker in validation_text for marker in ("試辦", "pilot")):
+                    raise PolicyGenerationError(
+                        "Taiwan transfer evidence requires a local pilot or validation step"
                     )
         if len({option.title for option in options}) != 3:
             raise PolicyGenerationError("policy option titles must be distinct")

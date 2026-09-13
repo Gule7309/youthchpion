@@ -126,7 +126,8 @@ describe('App', () => {
           searched_candidates: [{ evidence_id: 'ev_1', title: 'ILO report', institution: 'ILO', authors: [], published_at: '2025', evidence_type: 'international report', authority_tier: 'A', method_summary: 'Task analysis', finding: 'AI changes tasks', limitations: 'Not causal', url: 'https://ilo.org/report', retrieved_at: '2026-09-12T07:00:00Z', freshness: 'VERSIONED' }],
           gaps: [],
           agent_steps: ['SEARCHING', 'RETRIEVING', 'VERIFYING', 'COMPLETED'],
-          claims: [{ claim_id: 'claim-1', evidence_id: 'ev_1', claim: 'AI 主要改變工作任務。', excerpt: 'A directly supporting source passage.', locator: 'HTML block 2', support: 'direct', limitations: [], source_title: 'ILO report', source_url: 'https://ilo.org/report', retrieved_url: 'https://ilo.org/report', content_sha256: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890', authority_basis: 'allowlisted international organization' }],
+          claims: [{ claim_id: 'claim-1', evidence_id: 'ev_1', claim: 'AI 主要改變工作任務。', excerpt: 'A directly supporting source passage.', locator: 'HTML block 2', support: 'direct', limitations: [], source_title: 'ILO report', source_url: 'https://ilo.org/report', retrieved_url: 'https://ilo.org/report', content_sha256: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890', authority_basis: 'allowlisted international organization', geographic_scope: '國際／跨國', taiwan_applicability: 'TRANSFER_REQUIRES_LOCAL_VALIDATION', applicability_reason: '可支撐作用機制，但不能直接證明台灣青年成效。', local_validation_needed: ['台灣試辦'] }],
+          taiwan_applicability: { status: 'TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE', occupation_code: '4', occupation_name: '事務支援人員', taiwan_problem_context_supported: true, taiwan_intervention_effect_supported: false, local_context_source_ids: ['dgbas_employment'], local_research_evidence_ids: [], transfer_evidence_ids: ['ev_1'], conclusion: '台灣問題存在，但介入成效主要來自國際證據。', required_local_validation: ['執行 90 天台灣試辦'] },
           harness: { schema_version: '1.0', prompt_version: 'test-v1', searched_candidates: 1, selected_sources: 1, retrieved_sources: 1, model_calls: 1, approved_claims: 1, rejected_sources: 0, input_tokens: 100, output_tokens: 20, duration_ms: 50, max_sources: 3, max_passages_per_source: 12, deadline_seconds: 90 },
         }),
       })
@@ -151,7 +152,10 @@ describe('App', () => {
     expect(await screen.findByText(/已通過原文認證：AI 主要改變工作任務。/)).toBeInTheDocument()
     expect(screen.getByText(/SHA-256 abcdef123456/)).toBeInTheDocument()
     expect(screen.getByText(/Harness test-v1/)).toBeInTheDocument()
+    expect(screen.getByText(/台灣問題存在，但介入成效主要來自國際證據。/)).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith('/v1/evidence/verify', expect.objectContaining({ method: 'POST' }))
+    const verifyCall = fetch.mock.calls.find(([url]) => String(url).endsWith('/v1/evidence/verify'))
+    expect(JSON.parse(String(verifyCall?.[1]?.body))).toMatchObject({ occupation_code: '4' })
     fireEvent.click(screen.getByRole('tab', { name: '政策' }))
     expect(screen.getByRole('button', { name: '產生三個政策選項' })).toBeEnabled()
   })

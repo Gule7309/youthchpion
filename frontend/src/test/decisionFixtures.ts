@@ -109,9 +109,25 @@ export const verificationFixture: EvidenceVerification = {
     source_url: 'https://example.org/research',
     retrieved_url: 'https://example.org/research',
     authority_basis: '國際組織原始研究',
+    geographic_scope: '國際／跨國',
+    taiwan_applicability: 'TRANSFER_REQUIRES_LOCAL_VALIDATION',
+    applicability_reason: '可支撐機制，但不能直接證明台灣青年成效。',
+    local_validation_needed: ['執行台灣本地試辦'],
   }],
   gaps: [],
   agent_steps: ['SEARCHING', 'RETRIEVING', 'VERIFYING', 'COMPLETED'],
+  taiwan_applicability: {
+    status: 'TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE',
+    occupation_code: '4',
+    occupation_name: '事務支援人員',
+    taiwan_problem_context_supported: true,
+    taiwan_intervention_effect_supported: false,
+    local_context_source_ids: ['dgbas_employment'],
+    local_research_evidence_ids: [],
+    transfer_evidence_ids: ['ev-1'],
+    conclusion: '台灣問題脈絡成立，介入成效仍須本地驗證。',
+    required_local_validation: ['執行 90 天台灣試辦'],
+  },
 }
 
 export function policyFixture(count = 1): PolicyResponse {

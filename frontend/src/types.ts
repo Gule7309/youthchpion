@@ -142,6 +142,23 @@ export interface VerifiedClaim {
   retrieved_url?: string
   content_sha256?: string
   authority_basis?: string
+  geographic_scope: string
+  taiwan_applicability: 'DIRECT_TAIWAN_CONTEXT' | 'TRANSFER_REQUIRES_LOCAL_VALIDATION' | 'BACKGROUND_ONLY'
+  applicability_reason: string
+  local_validation_needed: string[]
+}
+
+export interface TaiwanApplicabilityAssessment {
+  status: 'TAIWAN_CONTEXT_WITH_LOCAL_INTERVENTION' | 'TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE' | 'INSUFFICIENT_TAIWAN_CONTEXT'
+  occupation_code?: string
+  occupation_name?: string
+  taiwan_problem_context_supported: boolean
+  taiwan_intervention_effect_supported: boolean
+  local_context_source_ids: string[]
+  local_research_evidence_ids: string[]
+  transfer_evidence_ids: string[]
+  conclusion: string
+  required_local_validation: string[]
 }
 
 export interface EvidenceHarnessSummary {
@@ -173,4 +190,5 @@ export interface EvidenceVerification {
   gaps: string[]
   agent_steps: string[]
   harness?: EvidenceHarnessSummary
+  taiwan_applicability: TaiwanApplicabilityAssessment
 }

@@ -7,7 +7,13 @@ from datetime import UTC, datetime
 import pytest
 
 from app.config import settings
-from app.models import EvidenceItem, FreshnessStatus, OccupationSignal, VerifiedClaim
+from app.models import (
+    EvidenceItem,
+    FreshnessStatus,
+    OccupationSignal,
+    TaiwanApplicabilityAssessment,
+    VerifiedClaim,
+)
 from app.policy import BedrockPolicyService, PolicyGenerationError
 
 
@@ -77,6 +83,37 @@ def test_policy_contract_allows_percentage_already_present_in_signal() -> None:
     assert len(result) == 3
 
 
+def test_policy_contract_requires_taiwan_pilot_for_transfer_evidence() -> None:
+    without_pilot = option()
+    without_pilot["implementation"] = ["直接全面推動"]
+    without_pilot["limitations"] = ["尚無台灣成效研究"]
+    raw = json.dumps(
+        {
+            "options": [
+                without_pilot,
+                {**without_pilot, "title": "職務再設計"},
+                {**without_pilot, "title": "媒合"},
+            ]
+        },
+        ensure_ascii=False,
+    )
+
+    with pytest.raises(PolicyGenerationError, match="local pilot"):
+        BedrockPolicyService._validate(raw, {"ev_1"}, require_local_pilot=True)
+
+    with_pilot = json.dumps(
+        {"options": [option(), option(mechanism="職務再設計"), option(mechanism="媒合")]},
+        ensure_ascii=False,
+    )
+    assert len(
+        BedrockPolicyService._validate(
+            with_pilot,
+            {"ev_1"},
+            require_local_pilot=True,
+        )
+    ) == 3
+
+
 @pytest.mark.asyncio
 async def test_policy_generation_corrects_an_invalid_first_contract(monkeypatch) -> None:
     monkeypatch.setattr(
@@ -128,9 +165,23 @@ async def test_policy_generation_corrects_an_invalid_first_contract(monkeypatch)
         return next(outputs)
 
     monkeypatch.setattr(service, "_converse", fake_converse)
+    applicability = TaiwanApplicabilityAssessment(
+        status="TAIWAN_CONTEXT_WITH_TRANSFER_EVIDENCE",
+        occupation_code="4",
+        occupation_name="事務支援人員",
+        taiwan_problem_context_supported=True,
+        taiwan_intervention_effect_supported=False,
+        conclusion="台灣問題存在，但介入成效仍須本地驗證。",
+        required_local_validation=["執行 90 天台灣試辦"],
+    )
 
     response = await service.generate(
-        "run_1", signal, "降低技能落差", [evidence], [verified_claim]
+        "run_1",
+        signal,
+        "降低技能落差",
+        [evidence],
+        [verified_claim],
+        applicability,
     )
 
     assert len(response.options) == 3
@@ -139,3 +190,5 @@ async def test_policy_generation_corrects_an_invalid_first_contract(monkeypatch)
     assert payloads[0]["allowed_percentage_values"] == [0.0, 15.0, 15.2, 15.24]
     assert payloads[0]["verified_claims"][0]["excerpt"].startswith("The study")
     assert "finding" not in payloads[0]["evidence_metadata"][0]
+    assert payloads[0]["taiwan_applicability"]["occupation_code"] == "4"
+    assert response.warnings == ["台灣問題存在，但介入成效仍須本地驗證。"]
