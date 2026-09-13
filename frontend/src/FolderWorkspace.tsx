@@ -1,12 +1,13 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent } from 'react'
 import { Icon, type IconName } from './Icon'
+import { isLandingHash } from './siteRoute'
 
 export const folderPages = [
   { id: 'indicators', label: '指標', icon: 'formula', description: '理解模型，看見每一項訊號' },
-  { id: 'risk', label: '風險', icon: 'chart', description: '比較職業，找到值得關注的變化' },
+  { id: 'risk', label: '排名', icon: 'chart', description: '比較職業，找到值得關注的變化' },
   { id: 'diagnosis', label: '診斷', icon: 'sparkles', description: '拆解原因，也保留其他可能的解釋' },
   { id: 'evidence', label: '論證', icon: 'book', description: '回到資料與研究，檢視判斷的依據' },
-  { id: 'report', label: '報告', icon: 'report', description: '從證據出發，評估政策方向' },
+  { id: 'report', label: '政策', icon: 'report', description: '從證據出發，評估政策方向' },
 ] as const satisfies readonly { id: string; label: string; icon: IconName; description: string }[]
 const aliases: Record<string, string> = { overview: 'indicators', 'dashboard-content': 'indicators', comparison: 'risk', research: 'evidence', policy: 'report' }
 export function pageFromHash(hash: string) {
@@ -141,6 +142,7 @@ export const FolderWorkspace = forwardRef<WorkspaceHandle, Props>(function Folde
   }
   useEffect(() => {
     const sync = () => {
+      if (isLandingHash(window.location.hash)) return
       const index = pageFromHash(window.location.hash)
       const hash = `#${folderPages[index].id}`
       if (window.location.hash !== hash) window.history.replaceState(null, '', hash)

@@ -26,7 +26,7 @@ describe('決策閱讀與會議草稿互動', () => {
     const nativeDialog = document.querySelector('dialog')!
     Object.defineProperty(nativeDialog, 'showModal', { value: () => nativeDialog.setAttribute('open', '') })
     Object.defineProperty(nativeDialog, 'close', { value: () => nativeDialog.removeAttribute('open') })
-    fireEvent.click(screen.getByRole('button', { name: '查看職業風險' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看職業排名' }))
     expect(screen.getByRole('tabpanel')).toHaveAttribute('id', 'panel-risk')
     fireEvent.click(screen.getByRole('button', { name: '查看判讀原因' }))
     expect(document.activeElement).toHaveAttribute('data-flow-id', 'claim-recruitment-change')
@@ -48,7 +48,7 @@ describe('決策閱讀與會議草稿互動', () => {
     vi.unstubAllGlobals()
   })
   it('切換職業關閉舊報告，預覽不出現在新職業下', () => {
-    render(<App />); go('報告')
+    render(<App />); go('政策')
     fireEvent.click(screen.getByRole('button', { name: '預覽會議草稿' }))
     fireEvent.change(screen.getByRole('combobox', { name: '目前職業' }), { target: { value: '2' } })
     expect(screen.queryByRole('article', { name: '完整會議文件' })).toBeNull()
@@ -114,7 +114,7 @@ describe('決策閱讀與會議草稿互動', () => {
     const view = render(<Harness analysis={a} />)
     expect(screen.getByRole('button', { name: '預覽會議草稿' })).toBeDisabled()
     view.unmount(); render(<EvidenceDetail evidence={a.evidence[1]} />)
-    expect(screen.getByText('核對資訊未完整')).toBeInTheDocument()
+    expect(screen.getByText('核對資訊待補')).toBeInTheDocument()
     expect(screen.queryByRole('blockquote')).toBeNull()
   })
   it('研究關聯缺失不冒充支持，不提供不存在的來源按鈕', () => {

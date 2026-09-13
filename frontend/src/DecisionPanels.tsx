@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { Icon } from './Icon'
+import { ChangeText } from './AnnualChange'
 import { analysisKey, buildMeetingDraft, claimIssues, claimLabels, evidenceIssues, policyIssues, relationIssues, relationLabels, safeSourceUrl, type Analysis, type Evidence, type MeetingDraft, type PolicyOption } from './decisionModel'
 import './decisionWorkflow.css'
 
@@ -16,26 +17,26 @@ export function SourceLink({ evidence }: { evidence: Evidence }) {
 }
 export function AnalysisSummary({ flow }: { flow: DecisionFlow }) {
   const claim = flow.analysis.claims.find(c => !claimIssues(flow.analysis, c).length)
-  return <div className="decision-summary"><div><strong>目前能看見什麼？</strong><p>{claim?.text ?? '目前沒有可核對的主要判讀。請先查看資料可用狀態。'}</p><small>{flow.analysis.actualPopulation}；不能推論 AI 取代。</small></div><button className="policy-text-button" onClick={e => flow.navigate(1, 'comparison-title', e.detail === 0)}>查看職業風險<Icon name="arrow" /></button></div>
+  return <div className="decision-summary"><div><strong>目前資料顯示什麼？</strong><p><ChangeText text={claim?.text ?? '目前資料還不足以做出判讀，請先查看資料來源。'} /></p><small>{flow.analysis.actualPopulation}；不能據此判定 AI 取代。</small></div><button className="policy-text-button" onClick={e => flow.navigate(1, 'comparison-title', e.detail === 0)}>查看職業排名<Icon name="arrow" /></button></div>
 }
 export function ClaimList({ flow }: { flow: DecisionFlow }) {
   const a = flow.analysis
   return <section className="decision-claims" aria-label="逐項判讀">
     {a.claims.map(c => <article className="decision-claim" key={c.id}>
-      <span className="decision-tag">{claimLabels[c.kind]}</span><h3 tabIndex={-1} data-flow-id={`claim-${c.id}`}>{c.title}</h3><p>{c.text}</p>
+      <span className="decision-tag">{claimLabels[c.kind]}</span><h3 tabIndex={-1} data-flow-id={`claim-${c.id}`}>{c.title}</h3><p><ChangeText text={c.text} /></p>
       <small>指標依據：{c.indicatorRefs.join('、') || '待補'}</small>
       {claimIssues(a, c).length > 0 && <p className="decision-gap">證據缺口：{[...new Set(claimIssues(a, c))].join('、')}</p>}
       <button className="policy-text-button" onClick={e => flow.navigate(3, `evidence-${c.id}`, e.detail === 0)}>核對這項判讀<Icon name="arrow" /></button>
     </article>)}
-    {!a.claims.length && <p className="decision-gap">此職業尚無可核對判讀。</p>}
+    {!a.claims.length && <p className="decision-gap">這個職業目前還沒有足夠資料可供判讀。</p>}
   </section>
 }
 export function LinkedEvidence({ flow }: { flow: DecisionFlow }) {
   const a = flow.analysis
   return <section className="decision-evidence" aria-label="判讀對應證據">
     {a.claims.map(c => <article className="decision-claim" key={c.id}>
-      <h3 tabIndex={-1} data-flow-id={`evidence-${c.id}`}>{c.title}</h3><p>{c.text}</p>
-      {!c.relations.length && <p className="decision-gap">尚未建立相符證據，不以一般研究替代。</p>}
+      <h3 tabIndex={-1} data-flow-id={`evidence-${c.id}`}>{c.title}</h3><p><ChangeText text={c.text} /></p>
+      {!c.relations.length && <p className="decision-gap">還沒有能支持這項判讀的證據，一般背景研究不足以代替。</p>}
       {c.relations.map((r, index) => {
         const e = a.evidence.find(e => e.id === r.evidenceId)
         const issues = relationIssues(a, r)
@@ -54,10 +55,10 @@ export function EvidenceDetail({ evidence }: { evidence?: Evidence }) {
   if (!evidence) return <p className="decision-gap">引用已不存在，請關閉詳情並重新選擇。</p>
   const issues = evidenceIssues(evidence)
   return <div className="decision-source">
-    <h3>{evidence.title}</h3><span className="decision-tag">{issues.length ? '核對資訊未完整' : '來源已核對'}</span>
+    <h3>{evidence.title}</h3><span className="decision-tag">{issues.length ? '核對資訊待補' : '來源已核對'}</span>
     <dl><dt>作者／機構</dt><dd>{unknown(evidence.author)}</dd><dt>發布日期</dt><dd>{unknown(evidence.date)}</dd><dt>來源類型</dt><dd>{evidence.type}</dd><dt>核對日期</dt><dd>{unknown(evidence.checkedAt)}</dd><dt>適用範圍</dt><dd>{evidence.scope}</dd><dt>原文定位</dt><dd>{unknown(evidence.locator)}</dd></dl>
     <h4>整理摘要（非直接引文）</h4><p>{evidence.summary}</p>
-    {evidence.quote ? <><h4>提供的原文引文</h4><blockquote>{evidence.quote}</blockquote></> : <p className="policy-muted">此紀錄未提供直接引文，不補寫原文。</p>}
+    {evidence.quote ? <><h4>提供的原文引文</h4><blockquote>{evidence.quote}</blockquote></> : <p className="policy-muted">這份紀錄只有摘要，尚未收錄直接引文。</p>}
     <h4>限制</h4><p>{evidence.limitations}</p>{issues.length > 0 && <p className="decision-gap">{issues.join('、')}</p>}<SourceLink evidence={evidence} />
   </div>
 }
@@ -78,7 +79,7 @@ export function PolicyMeeting({ flow }: { flow: DecisionFlow }) {
   const available = buildMeetingDraft(a, flow.selected) !== null
   return <div className="decision-meeting">
     <h3 tabIndex={-1} data-flow-id="policy-options">比較政策選項</h3>
-    <p className="policy-muted">選擇要帶入會議的方案，不代表核准或最佳推薦。選擇僅於本次使用期間保留。</p>
+    <p className="policy-muted">勾選想帶到會議討論的方案，之後仍需人工評估。選擇只保留在本次瀏覽，重新整理頁面後會清除。</p>
     {!a.policies.length && <div className="decision-gap"><strong>目前沒有核對完成的政策選項</strong><p>現有招募趨勢不足以支持特定政策。先整理可核對的觀測與限制，等職業政策證據補齊後再比較方案。</p></div>}
     <div className="policy-option-grid">{a.policies.map(p => {
       const issues = policyIssues(a, p)
@@ -87,7 +88,7 @@ export function PolicyMeeting({ flow }: { flow: DecisionFlow }) {
         <label className="policy-choice"><input type="checkbox" checked={flow.selected.includes(p.id)} disabled={issues.length > 0} aria-describedby={issues.length ? `policy-issue-${p.id}` : undefined} onChange={() => flow.togglePolicy(p.id)} />納入會議草稿<span className="folder-sr-only">：{p.title}</span></label>
       </article>
     })}</div>
-    <div className="meeting-toolbar"><div><strong>{flow.selected.length ? `已選取 ${flow.selected.length} 個方案` : '先帶著證據討論'}</strong><p>整理目前可用內容，不呼叫 AI 生成服務。</p></div><button className="button" ref={previewButton} disabled={!available} onClick={() => flow.setDraft(buildMeetingDraft(a, flow.selected))}><Icon name="report" />{draft ? '重新整理草稿' : '預覽會議草稿'}</button></div>
+    <div className="meeting-toolbar"><div><strong>{flow.selected.length ? `已選取 ${flow.selected.length} 個方案` : '整理會議草稿'}</strong><p>將目前資料整理成草稿，這一步不使用 AI。</p></div><button className="button" ref={previewButton} disabled={!available} onClick={() => flow.setDraft(buildMeetingDraft(a, flow.selected))}><Icon name="report" />{draft ? '重新整理草稿' : '預覽會議草稿'}</button></div>
     {!available && <p role="status">尚無可核對內容，無法預覽或列印。</p>}
     {draft && <section className="meeting-preview" aria-label="會議草稿預覽">
       <div className="meeting-preview-controls"><h3 ref={heading} tabIndex={-1}>會議草稿預覽</h3><div><button className="policy-text-button" onClick={() => window.print()}>列印／另存 PDF</button><button className="policy-text-button" onClick={() => flow.setDraft(null)}>關閉預覽</button></div></div>
@@ -101,7 +102,7 @@ export function MeetingReport({ draft }: { draft: MeetingDraft }) {
   const a = draft.analysis
   const maximum = Math.max(1, ...a.indicators.filter(i => i.unit === '人次').map(i => i.value ?? 0))
   return <article className="meeting-report" aria-label="完整會議文件">
-    <header><span>YouthLM / 政策決策輔助</span><h2>{a.occupation.name}｜{draft.kind === 'policy-draft' ? '政策討論草稿' : '監測摘要'}</h2><p>供人工審閱與討論；不是失業預測或已核准政策。</p></header>
+    <header><span>rescueBill / 政策決策輔助</span><h2>{a.occupation.name}｜{draft.kind === 'policy-draft' ? '政策討論草稿' : '監測摘要'}</h2><p>供人工審閱與討論；不是失業預測或已核准政策。</p></header>
     <dl className="report-metadata"><dt>分析問題</dt><dd>AI 衝擊下，這個職業的青年就業需要關注什麼？</dd><dt>目標／實際範圍</dt><dd>{a.targetPopulation} ／ {a.actualPopulation}</dd><dt>地區／資料期間</dt><dd>{a.geography} ／ {a.periods.join('、')}</dd><dt>模型／分析版本</dt><dd>{a.modelVersion} ／ {a.id}</dd><dt>來源核對／發布日期</dt><dd>{a.checkedAt} ／ {unknown(a.publishedAt)}</dd><dt>本機整理時間</dt><dd>{new Date(draft.assembledAt).toLocaleString('zh-TW')}（非資料更新時間）</dd></dl>
     <section><h3>可用指標與觀測</h3><p>{a.reason}</p><table><thead><tr><th>指標</th><th>期間</th><th>數值</th><th>方法／引用</th></tr></thead><tbody>{a.indicators.map(i => <tr key={i.id}><th>{i.label}</th><td>{i.period}</td><td>{i.value?.toLocaleString('zh-TW')} {i.unit}</td><td>{i.method} / {i.sourceRefs.join('、')}</td></tr>)}</tbody></table>
       {a.indicators.filter(i => i.unit === '人次').map(i => <div className="report-chart-row" key={i.id}><span>{i.period}</span><div><i style={{ width: `${(i.value ?? 0) / maximum * 100}%` }} /></div><b>{i.value?.toLocaleString('zh-TW')} 人次</b></div>)}
